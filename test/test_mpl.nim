@@ -2,8 +2,8 @@ import NimBorg/py2
 from python import PyList_New
 
 let n = 100
-let lx = new_list(n)
-let ly = new_list(n)
+let lx = init_list(n)
+let ly = init_list(n)
 let sin = ~py_import("math").sin
 for i in 1..n:
   ~lx.append(float(i)*0.1)

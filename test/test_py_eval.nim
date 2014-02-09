@@ -1,6 +1,6 @@
 import NimBorg/py2
 
-let c = new_context()
+let c = init_context()
 c.globals["x"] = 42
 c.locals["y"] = 10
 let res = $c.eval("float(x)/y**2")

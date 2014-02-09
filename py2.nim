@@ -48,9 +48,9 @@ converter to_PPyRef*(p: PPyObject) : PPyRef =
   new result
   result.p = check(p)
 
-proc new_dict*(): PPyRef = PyDict_New()
-proc new_list*(size: int): PPyRef = PyList_New(size)
-proc new_tuple*(size: int): PPyRef = PyTuple_New(size)
+proc init_dict*(): PPyRef = PyDict_New()
+proc init_list*(size: int): PPyRef = PyList_New(size)
+proc init_tuple*(size: int): PPyRef = PyTuple_New(size)
 
 converter to_py*(f: float) : PPyRef = PyFloat_fromDouble(f)
 converter to_py*(i: int) : PPyRef = PyInt_FromLong(int32(i))
@@ -58,7 +58,7 @@ converter to_py*(s: cstring) : PPyRef = PyString_fromString(s)
 converter to_py*(s: string) : PPyRef = to_py(cstring(s))
 
 proc to_list*(vals: openarray[PPyRef]): PPyRef =
-  result = new_list(len(vals))
+  result = init_list(len(vals))
   for i in 0..len(vals)-1:
     let p = vals[i].p
     discard check(PyList_SetItem(result.p, i, p))
@@ -71,7 +71,7 @@ converter to_py*[T](vals: seq[T]): PPyRef =
   to_list(map[T,PPyRef](vals, to_py))
 
 proc to_tuple*(vals: openarray[PPyRef]): PPyRef = 
-  result = new_tuple(len(vals))
+  result = init_tuple(len(vals))
   for i in 0..len(vals)-1:
     let p = vals[i].p
     discard check(PyTuple_SetItem(result.p, i, p))
@@ -153,10 +153,10 @@ proc eval*(c: PContext, src: cstring) : PPyRef =
 
 proc builtins*() : PPyRef = PyEval_GetBuiltins()
   
-proc new_context*() : PContext = 
+proc init_context*() : PContext = 
   new result
-  result.locals = new_dict()
-  result.globals = new_dict()
+  result.locals = init_dict()
+  result.globals = init_dict()
   result.globals["__builtins__"] = builtins()
   result.globals["__builtins__"] = builtins()
 
