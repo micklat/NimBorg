@@ -57,20 +57,20 @@ converter to_py*(i: int) : PPyRef = PyInt_FromLong(int32(i))
 converter to_py*(s: cstring) : PPyRef = PyString_fromString(s)
 converter to_py*(s: string) : PPyRef = to_py(cstring(s))
 
-converter to_list*(vals: openarray[PPyRef]): PPyRef =
+proc to_list*(vals: openarray[PPyRef]): PPyRef =
   result = new_list(len(vals))
   for i in 0..len(vals)-1:
     let p = vals[i].p
     discard check(PyList_SetItem(result.p, i, p))
     Py_INCREF(p)
 
-converter to_py*[T](vals: openarray[T]): PPyRef =
+proc to_py*[T](vals: openarray[T]): PPyRef =
   to_list(map[T,PPyRef](vals, to_py))
 
 converter to_py*[T](vals: seq[T]): PPyRef =
   to_list(map[T,PPyRef](vals, to_py))
 
-converter to_tuple*(vals: openarray[PPyRef]): PPyRef = 
+proc to_tuple*(vals: openarray[PPyRef]): PPyRef = 
   result = new_tuple(len(vals))
   for i in 0..len(vals)-1:
     let p = vals[i].p
@@ -81,7 +81,11 @@ proc `$`*(o: PPyRef) : string =
   let s = to_PPyRef(PyObject_Str(o.p))
   $PyString_AsString(s.p)
 
-converter from_py_int*(o: PPyRef) : int = PyInt_AsLong(o.p)
+converter from_py_int*(o: PPyRef) : int =
+  result = PyInt_AsLong(o.p)
+  if result== -1:
+    if PyErr_Occurred() != nil:
+      handle_error("failed conversion to int")
 
 proc len*(o: PPyRef) : int =
   check(PyObject_Length(o.p))
