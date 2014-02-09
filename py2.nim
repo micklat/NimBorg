@@ -1,6 +1,6 @@
 # A high-level wrapper for python 2.x (thus the name "py2.nim" rather than "py.nim")
 
-# shrot-term TODO:
+# short-term TODO:
 #
 # * check whether the destructor gets called at all
 # * support more of the API
@@ -25,6 +25,10 @@ type
 
   EPyException = object of E_Base
 
+  Context = object 
+    globals*, locals*: PPyRef 
+  PContext = ref Context
+
 proc handle_error(s : string) =
   PyErr_Print()
   raise newException(EPyException, s)
@@ -41,13 +45,17 @@ converter to_PPyRef*(p: PPyObject) : PPyRef =
   new result
   result.p = check(p)
 
+proc new_dict*(): PPyRef = PyDict_New()
+proc new_list*(size: int): PPyRef = PyList_New(size)
+proc new_tuple*(size: int): PPyRef = PyTuple_New(size)
+
 converter to_py*(f: float) : PPyRef = PyFloat_fromDouble(f)
 converter to_py*(i: int) : PPyRef = PyInt_FromLong(int32(i))
 converter to_py*(s: cstring) : PPyRef = PyString_fromString(s)
 converter to_py*(s: string) : PPyRef = to_py(cstring(s))
 
 converter to_list*(vals: openarray[PPyRef]): PPyRef =
-  result = PyList_New(len(vals))
+  result = new_list(len(vals))
   for i in 0..len(vals)-1:
     let p = vals[i].p
     discard check(PyList_SetItem(result.p, i, p))
@@ -60,8 +68,7 @@ converter to_py*[T](vals: seq[T]): PPyRef =
   to_list(map[T,PPyRef](vals, to_py))
 
 converter to_tuple*(vals: openarray[PPyRef]): PPyRef = 
-  new result
-  result.p = check(PyTuple_New(len(vals)))
+  result = new_tuple(len(vals))
   for i in 0..len(vals)-1:
     let p = vals[i].p
     discard check(PyTuple_SetItem(result.p, i, p))
@@ -106,6 +113,21 @@ proc py_import*(name : cstring) : PPyRef =
 
 proc `[]`*(v: PPyRef, key: PPyRef) : PPyRef =
   to_PPyRef(PyObject_GetItem(v.p, key.p))
+
+proc `[]=`*(mapping, key, val: PPyRef): void =
+  discard check(PyObject_SetItem(mapping.p, key.p, val.p))
+
+proc eval*(c: PContext, src: cstring) : PPyRef =
+  PyRun_String(src, eval_input, c.globals.p, c.locals.p)
+
+proc builtins*() : PPyRef = PyEval_GetBuiltins()
+  
+proc new_context*() : PContext = 
+  new result
+  result.locals = new_dict()
+  result.globals = new_dict()
+  result.globals["__builtins__"] = builtins()
+  result.globals["__builtins__"] = builtins()
 
 type
   Interpreter = object {.bycopy.} 
