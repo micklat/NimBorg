@@ -29,6 +29,9 @@ type
     globals*, locals*: PPyRef 
   PContext = ref Context
 
+# forward declarations
+proc getattr*(o: PPyRef, name: cstring) : PPyRef
+
 proc handle_error(s : string) =
   PyErr_Print()
   raise newException(EPyException, s)
@@ -72,7 +75,7 @@ converter to_tuple*(vals: openarray[PPyRef]): PPyRef =
   for i in 0..len(vals)-1:
     let p = vals[i].p
     discard check(PyTuple_SetItem(result.p, i, p))
-    Py_INCREF(p) # the tuple 'steals' references
+    Py_INCREF(p) # PyTuple_SetItem steals refs, I don't want that
   
 proc `$`*(o: PPyRef) : string = 
   let s = to_PPyRef(PyObject_Str(o.p))
@@ -83,16 +86,40 @@ converter from_py_int*(o: PPyRef) : int = PyInt_AsLong(o.p)
 proc len*(o: PPyRef) : int =
   check(PyObject_Length(o.p))
 
-proc `()`*(f: PPyRef, args: varargs[PPyRef]): PPyRef = 
+proc `()`*(f: PPyRef, args: varargs[PPyRef]): PPyRef {.discardable.} = 
   let args_tup = to_tuple(args)
   PyObject_CallObject(f.p, args_tup.p)
 
-macro `->`*(a: expr, b:expr) : expr {.immediate.} =
-  let name = toStrLit(b)
-  result = newNimNode(nnkCall)
-  result.add(newIdentNode("getattr"))
-  result.add(a)
-  result.add(name)
+# proc `()`*(field: string, obj: PPyRef): PPyRef {.delegator.} =
+#   result = getattr(obj, field)
+
+# proc `()`*(field: string, obj: PPyRef, args: varargs[PPyRef]): PPyRef =
+#   echo field, " in argful delegator"
+#   let args_tup = to_tuple(args)
+#   PyObject_CallObject(getattr(obj.p, field).p, args_tup.p)
+
+# This is a temporary kludge until '.' can be overloaded. However,
+# it doesn't seem like that's gonna happen until version 1 or even
+# later, see the IRC logs for 2014-02-09.
+proc replace_dots(a: expr): expr {.compileTime.} =
+  #echo(repr(a))
+  result = a
+  case a.kind
+  of nnkDotExpr: 
+    expectLen(a, 2)
+    expectKind(a[1], nnkIdent)
+    result = newCall(!"getattr", replace_dots(a[0]), toStrLit(a[1]))
+  of nnkEmpty, nnkNilLit, nnkCharLit..nnkInt64Lit: discard
+  of nnkFloatLit..nnkFloat64Lit, nnkStrLit..nnkTripleStrLit: discard
+  of nnkIdent, nnkSym, nnkNone: discard
+  else:
+    result = newNimNode(a.kind)
+    for i in 0..a.len-1:
+      result.add(replace_dots(a[i]))
+
+macro `~`*(a: expr) : expr {.immediate.} = 
+  result = replace_dots(a)
+  #echo(repr(result))
 
 proc dup*(src: PPyRef) : PPyRef = 
   new result
