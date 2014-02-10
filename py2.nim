@@ -9,16 +9,14 @@
 # 
 # * don't print exceptions, retrieve the exception information into nimrod
 #
-# long-range TODO:
-# * find a better syntax for member access
-#
 
 import python except expr
 import macros
 
 type
-  # A non-borrowed (counted) reference. Avoid copying these around! Nimrod doesn't have
-  # the equivalent of an assignment constructor (yet?), so any copy of PyRef must be counted (use dup for that).
+  # A non-borrowed (counted) reference. Avoid copying these around! Nimrod 
+  # doesn't have the equivalent of an assignment constructor (yet?), so any
+  # copy of a PyRef must be counted (use dup for that).
   PyRef = object {.inheritable, byref.} 
     p: PPyObject
   PPyRef* = ref PyRef
@@ -82,11 +80,17 @@ proc `$`*(o: PPyRef) : string =
   let s = to_PPyRef(PyObject_Str(o.p))
   $PyString_AsString(s.p)
 
-proc from_py_int*(o: PPyRef) : int =
+proc int_from_py*(o: PPyRef) : int =
   result = PyInt_AsLong(o.p)
   if result== -1:
     if PyErr_Occurred() != nil:
       handle_error("failed conversion to int")
+
+proc float_from_py*(o: PPyRef) : float =
+  result = PyFloat_AsDouble(o.p)
+  if result == -1.0:
+    if PyErr_Occurred() != nil:
+      handle_error("failed conversion to float")
 
 proc len*(o: PPyRef) : int =
   check(PyObject_Length(o.p))
