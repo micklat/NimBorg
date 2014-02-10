@@ -36,7 +36,6 @@ proc builtins*() : PPyRef
 proc `()`*(f: PPyRef, args: varargs[PPyRef,to_py]): PPyRef {.discardable.}
 proc init_dict*(): PPyRef
 proc init_list*(size: int): PPyRef
-proc init_tuple*(size: int): PPyRef
 
 #-------------------------------------------------------------------------------
 # error handling
@@ -94,8 +93,9 @@ proc to_py*[T](vals: openarray[T]): PPyRef = to_list(map[T,PPyRef](vals, to_py))
 converter to_py*[T](vals: seq[T]): PPyRef = to_list(map[T,PPyRef](vals, to_py))
 
 proc to_tuple*(vals: openarray[PPyRef]): PPyRef = 
-  result = init_tuple(len(vals))
-  for i in 0..len(vals)-1:
+  let size = vals.len
+  result = PyTuple_New(size)
+  for i in 0..size-1:
     let p = vals[i].p
     Py_INCREF(p) # PyTuple_SetItem steals refs
     discard check(PyTuple_SetItem(result.p, i, p))
@@ -198,13 +198,6 @@ proc init_list*(size: int): PPyRef =
   for i in 0..size-1:
     Py_INCREF(Py_None)
     let err = PyList_SetItem(result.p, i, Py_None)
-    assert(err==0)
-
-proc init_tuple*(size: int): PPyRef = 
-  result = PyTuple_New(size)
-  for i in 0..size-1:
-    Py_INCREF(Py_None)
-    let err = PyTuple_SetItem(result.p, i, Py_None)
     assert(err==0)
 
 #-------------------------------------------------------------------------------

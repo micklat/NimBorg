@@ -1,3 +1,8 @@
+tests: test_py test_py_eval test_pylab
+	./test_py
+	./test_py_eval
+	./test_pylab
+
 test_py: test_py.nim ../py2.nim
 	nimrod -p=../.. c $<
 
