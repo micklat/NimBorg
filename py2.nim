@@ -38,6 +38,9 @@ proc init_dict*(): PPyRef
 proc init_list*(size: int): PPyRef
 proc init_tuple*(size: int): PPyRef
 
+#-------------------------------------------------------------------------------
+# error handling
+
 proc handle_error(s : string) =
   PyErr_Print()
   raise newException(EPyException, s)
@@ -50,17 +53,32 @@ proc check(x: int) : int =
   if x == -1: handle_error("check(-1)")
   result = x
 
+#-------------------------------------------------------------------------------
+# lifetime management
+
+proc dup*(src: PPyRef) : PPyRef = 
+  new result
+  result.p = src.p
+  Py_INCREF(result.p)
+
+proc destroy(o: var PyRef) {.destructor.} =
+  if o.p != nil:
+    Py_DECREF(o.p)
+    o.p = nil
+
 converter to_PPyRef*(p: PPyObject) : PPyRef = 
   new result
   result.p = check(p)
 
 proc ref_count*(o: PPyRef): int = o.p.ob_refcnt
 
+#-------------------------------------------------------------------------------
+# conversion of nimrod values to/from python values
+
 proc to_py*(x: PPyRef) : PPyRef = x
 converter to_py*(f: float) : PPyRef = PyFloat_fromDouble(f)
 converter to_py*(i: int) : PPyRef = 
   result = PyInt_FromLong(int32(i))
-  #echo "converting ", i, " to a python value, with RC=", ref_count(result)
 converter to_py*(s: cstring) : PPyRef = PyString_fromString(s)
 converter to_py*(s: string) : PPyRef = to_py(cstring(s))
 
@@ -71,11 +89,9 @@ proc to_list*(vals: openarray[PPyRef]): PPyRef =
     Py_INCREF(p)
     discard check(PyList_SetItem(result.p, i, p))
 
-proc to_py*[T](vals: openarray[T]): PPyRef =
-  to_list(map[T,PPyRef](vals, to_py))
+proc to_py*[T](vals: openarray[T]): PPyRef = to_list(map[T,PPyRef](vals, to_py))
 
-converter to_py*[T](vals: seq[T]): PPyRef =
-  to_list(map[T,PPyRef](vals, to_py))
+converter to_py*[T](vals: seq[T]): PPyRef = to_list(map[T,PPyRef](vals, to_py))
 
 proc to_tuple*(vals: openarray[PPyRef]): PPyRef = 
   result = init_tuple(len(vals))
@@ -100,12 +116,8 @@ proc float_from_py*(o: PPyRef) : float =
     if PyErr_Occurred() != nil:
       handle_error("failed conversion to float")
 
-proc len*(o: PPyRef) : int =
-  check(PyObject_Length(o.p))
-
-proc `()`*(f: PPyRef, args: varargs[PPyRef,to_py]): PPyRef = 
-  let args_tup = to_tuple(args)
-  PyObject_CallObject(f.p, args_tup.p)
+#-------------------------------------------------------------------------------
+# ~ : syntactic sugar for getattr
 
 # distinguish between accesses to python objects and to nimrod objects
 # based on the object's type.
@@ -142,26 +154,24 @@ proc replace_dots(a: expr): expr {.compileTime.} =
 
 macro `~`*(a: expr) : expr {.immediate.} = 
   result = replace_dots(a)
-  #echo(repr(result))
 
-proc dup*(src: PPyRef) : PPyRef = 
-  new result
-  result.p = src.p
-  Py_INCREF(result.p)
-
-proc destroy(o: var PyRef) {.destructor.} =
-  if o.p != nil:
-    echo "decrefing"
-    Py_DECREF(o.p)
-    o.p = nil
+#-------------------------------------------------------------------------------
+# common object properties
 
 proc getattr*(o: PPyRef, name: cstring) : PPyRef =
   result = to_PPyRef(PyObject_GetAttrString(o.p, name))
 
-proc py_import*(name : cstring) : PPyRef =
-  PyImport_ImportModule(name)
-
 proc repr*(o: PPyRef): string = $(builtins()["repr"](o))
+
+proc len*(o: PPyRef) : int =
+  check(PyObject_Length(o.p))
+
+#-------------------------------------------------------------------------------
+# operator overloading
+
+proc `()`*(f: PPyRef, args: varargs[PPyRef,to_py]): PPyRef = 
+  let args_tup = to_tuple(args)
+  PyObject_CallObject(f.p, args_tup.p)
 
 proc `[]`*(v: PPyRef, key: PPyRef) : PPyRef =
   to_PPyRef(PyObject_GetItem(v.p, key.p))
@@ -178,19 +188,11 @@ proc `-`*(a:PPyRef): PPyRef = PyNumber_Negative(a.p)
 proc `+`*(a:PPyRef): PPyRef = PyNumber_Positive(a.p)
 proc abs*(a:PPyRef): PPyRef = PyNumber_Absolute(a.p)
 
-proc eval*(c: PContext, src: cstring) : PPyRef =
-  PyRun_String(src, eval_input, c.globals.p, c.locals.p)
-
-proc builtins*() : PPyRef = PyEval_GetBuiltins()
-  
-proc init_context*() : PContext = 
-  new result
-  result.locals = init_dict()
-  result.globals = init_dict()
-  result.globals["__builtins__"] = builtins()
-  result.globals["__builtins__"] = builtins()
+#------------------------------------------------------------------------------
+# containers
 
 proc init_dict*(): PPyRef = PyDict_New()
+
 proc init_list*(size: int): PPyRef = 
   result = PyList_New(size)
   for i in 0..size-1:
@@ -204,6 +206,24 @@ proc init_tuple*(size: int): PPyRef =
     Py_INCREF(Py_None)
     let err = PyTuple_SetItem(result.p, i, Py_None)
     assert(err==0)
+
+#-------------------------------------------------------------------------------
+# importation and evaluation
+
+proc eval*(c: PContext, src: cstring) : PPyRef =
+  PyRun_String(src, eval_input, c.globals.p, c.locals.p)
+
+proc builtins*() : PPyRef = PyEval_GetBuiltins()
+  
+proc py_import*(name : cstring) : PPyRef =
+  PyImport_ImportModule(name)
+
+proc init_context*() : PContext = 
+  new result
+  result.locals = init_dict()
+  result.globals = init_dict()
+  result.globals["__builtins__"] = builtins()
+  result.globals["__builtins__"] = builtins()
 
 type
   Interpreter = object {.bycopy.} 

@@ -1,7 +1,7 @@
 test_py: test_py.nim ../py2.nim
 	nimrod -p=../.. c $<
 
-test_mpl: test_mpl.nim ../py2.nim
+test_pylab: test_pylab.nim ../py2.nim
 	nimrod -p=../.. c $<
 
 test_py_eval: test_py_eval.nim ../py2.nim

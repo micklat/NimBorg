@@ -16,7 +16,7 @@ echo ""
 
 # mix nimrod member access and python member access in the same expression:
 let p = (x: 1, y: 1)
-let py_pi = ~py_import("math").atan(p.y/p.x)
+var py_pi = ~py_import("math").atan(p.y/p.x)
 let nim_pi = float_from_py(4 * py_pi)
 let nim_pi2 = 4 * float_from_py(py_pi)
 assert(nim_pi==nim_pi2)
