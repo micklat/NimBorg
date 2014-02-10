@@ -4,12 +4,17 @@ from python import PyList_New
 let n = 100
 let lx = init_list(n)
 let ly = init_list(n)
-let sin = ~py_import("math").sin
-for i in 1..n:
-  ~lx.append(float(i)*0.1)
-  ~ly.append(sin(lx[-1]))
-let mpl = py_import("matplotlib")
-~mpl.plot(lx, ly)
-#~mpl.plot(to_py(@[1,2,3,4]), to_py(@[10,11,10,12]))
-~mpl.title("plotting example")
-~mpl.show()
+let py_sin = ~py_import("math").sin
+for i in 0..n-1:
+  lx[i] = float(i)*0.1
+  ly[i] = py_sin(lx[i])
+let pylab = py_import("pylab")
+~pylab.subplot(2,1,1)
+~pylab.plot(lx, ly)
+~pylab.title("sin(x)")
+
+~pylab.subplot(2,1,2)
+~pylab.plot([1,2,3,4], @[10,11,10,12])
+~pylab.title("arrays and seqs are converted to lists")
+
+~pylab.show()

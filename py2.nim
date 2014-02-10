@@ -29,6 +29,14 @@ type
 
 # forward declarations
 proc getattr*(o: PPyRef, name: cstring) : PPyRef
+proc eval*(c: PContext, src: cstring) : PPyRef
+proc `[]`*(v: PPyRef, key: PPyRef) : PPyRef
+proc `[]=`*(mapping, key, val: PPyRef): void
+proc builtins*() : PPyRef
+proc `()`*(f: PPyRef, args: varargs[PPyRef,to_py]): PPyRef {.discardable.}
+proc init_dict*(): PPyRef
+proc init_list*(size: int): PPyRef
+proc init_tuple*(size: int): PPyRef
 
 proc handle_error(s : string) =
   PyErr_Print()
@@ -46,13 +54,13 @@ converter to_PPyRef*(p: PPyObject) : PPyRef =
   new result
   result.p = check(p)
 
-proc init_dict*(): PPyRef = PyDict_New()
-proc init_list*(size: int): PPyRef = PyList_New(size)
-proc init_tuple*(size: int): PPyRef = PyTuple_New(size)
+proc ref_count*(o: PPyRef): int = o.p.ob_refcnt
 
 proc to_py*(x: PPyRef) : PPyRef = x
 converter to_py*(f: float) : PPyRef = PyFloat_fromDouble(f)
-converter to_py*(i: int) : PPyRef = PyInt_FromLong(int32(i))
+converter to_py*(i: int) : PPyRef = 
+  result = PyInt_FromLong(int32(i))
+  #echo "converting ", i, " to a python value, with RC=", ref_count(result)
 converter to_py*(s: cstring) : PPyRef = PyString_fromString(s)
 converter to_py*(s: string) : PPyRef = to_py(cstring(s))
 
@@ -60,8 +68,8 @@ proc to_list*(vals: openarray[PPyRef]): PPyRef =
   result = init_list(len(vals))
   for i in 0..len(vals)-1:
     let p = vals[i].p
-    discard check(PyList_SetItem(result.p, i, p))
     Py_INCREF(p)
+    discard check(PyList_SetItem(result.p, i, p))
 
 proc to_py*[T](vals: openarray[T]): PPyRef =
   to_list(map[T,PPyRef](vals, to_py))
@@ -73,8 +81,8 @@ proc to_tuple*(vals: openarray[PPyRef]): PPyRef =
   result = init_tuple(len(vals))
   for i in 0..len(vals)-1:
     let p = vals[i].p
+    Py_INCREF(p) # PyTuple_SetItem steals refs
     discard check(PyTuple_SetItem(result.p, i, p))
-    Py_INCREF(p) # PyTuple_SetItem steals refs, I don't want that
   
 proc `$`*(o: PPyRef) : string = 
   let s = to_PPyRef(PyObject_Str(o.p))
@@ -95,7 +103,7 @@ proc float_from_py*(o: PPyRef) : float =
 proc len*(o: PPyRef) : int =
   check(PyObject_Length(o.p))
 
-proc `()`*(f: PPyRef, args: varargs[PPyRef,to_py]): PPyRef {.discardable.} = 
+proc `()`*(f: PPyRef, args: varargs[PPyRef,to_py]): PPyRef = 
   let args_tup = to_tuple(args)
   PyObject_CallObject(f.p, args_tup.p)
 
@@ -153,6 +161,8 @@ proc getattr*(o: PPyRef, name: cstring) : PPyRef =
 proc py_import*(name : cstring) : PPyRef =
   PyImport_ImportModule(name)
 
+proc repr*(o: PPyRef): string = $(builtins()["repr"](o))
+
 proc `[]`*(v: PPyRef, key: PPyRef) : PPyRef =
   to_PPyRef(PyObject_GetItem(v.p, key.p))
 
@@ -179,6 +189,21 @@ proc init_context*() : PContext =
   result.globals = init_dict()
   result.globals["__builtins__"] = builtins()
   result.globals["__builtins__"] = builtins()
+
+proc init_dict*(): PPyRef = PyDict_New()
+proc init_list*(size: int): PPyRef = 
+  result = PyList_New(size)
+  for i in 0..size-1:
+    Py_INCREF(Py_None)
+    let err = PyList_SetItem(result.p, i, Py_None)
+    assert(err==0)
+
+proc init_tuple*(size: int): PPyRef = 
+  result = PyTuple_New(size)
+  for i in 0..size-1:
+    Py_INCREF(Py_None)
+    let err = PyTuple_SetItem(result.p, i, Py_None)
+    assert(err==0)
 
 type
   Interpreter = object {.bycopy.} 
