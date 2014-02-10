@@ -52,6 +52,7 @@ proc init_dict*(): PPyRef = PyDict_New()
 proc init_list*(size: int): PPyRef = PyList_New(size)
 proc init_tuple*(size: int): PPyRef = PyTuple_New(size)
 
+proc to_py*(x: PPyRef) : PPyRef = x
 converter to_py*(f: float) : PPyRef = PyFloat_fromDouble(f)
 converter to_py*(i: int) : PPyRef = PyInt_FromLong(int32(i))
 converter to_py*(s: cstring) : PPyRef = PyString_fromString(s)
@@ -81,7 +82,7 @@ proc `$`*(o: PPyRef) : string =
   let s = to_PPyRef(PyObject_Str(o.p))
   $PyString_AsString(s.p)
 
-converter from_py_int*(o: PPyRef) : int =
+proc from_py_int*(o: PPyRef) : int =
   result = PyInt_AsLong(o.p)
   if result== -1:
     if PyErr_Occurred() != nil:
@@ -90,17 +91,19 @@ converter from_py_int*(o: PPyRef) : int =
 proc len*(o: PPyRef) : int =
   check(PyObject_Length(o.p))
 
-proc `()`*(f: PPyRef, args: varargs[PPyRef]): PPyRef {.discardable.} = 
+proc `()`*(f: PPyRef, args: varargs[PPyRef,to_py]): PPyRef {.discardable.} = 
   let args_tup = to_tuple(args)
   PyObject_CallObject(f.p, args_tup.p)
 
-# proc `()`*(field: string, obj: PPyRef): PPyRef {.delegator.} =
-#   result = getattr(obj, field)
-
-# proc `()`*(field: string, obj: PPyRef, args: varargs[PPyRef]): PPyRef =
-#   echo field, " in argful delegator"
-#   let args_tup = to_tuple(args)
-#   PyObject_CallObject(getattr(obj.p, field).p, args_tup.p)
+# distinguish between accesses to python objects and to nimrod objects
+# based on the object's type.
+macro resolve_dot(obj: expr, field: string): expr = 
+  result = newDotExpr(obj, newIdentNode(!strVal(field)))
+  #echo "re-created ", repr(result)
+macro resolve_dot(obj: PPyRef, field: string): expr = 
+  #echo "resolving ", strVal(field), " in ", repr(obj)
+  result = newCall(bindSym"getattr", obj, newStrLitNode(strVal(field)))
+  #echo "resolved"
 
 # This is a temporary kludge until '.' can be overloaded. However,
 # it doesn't seem like that's gonna happen until version 1 or even
@@ -108,11 +111,15 @@ proc `()`*(f: PPyRef, args: varargs[PPyRef]): PPyRef {.discardable.} =
 proc replace_dots(a: expr): expr {.compileTime.} =
   #echo(repr(a))
   result = a
+  let lookup = bindSym"resolve_dot"
   case a.kind
   of nnkDotExpr: 
     expectLen(a, 2)
     expectKind(a[1], nnkIdent)
-    result = newCall(!"getattr", replace_dots(a[0]), toStrLit(a[1]))
+    # defer the distinction between python member lookup and nimrod member
+    # lookup to the type-checking phase.
+    #echo("looking up ", repr(a[1]), " in ", repr(replace_dots(a[0])))
+    result = newCall(lookup, replace_dots(a[0]), toStrLit(a[1]))
   of nnkEmpty, nnkNilLit, nnkCharLit..nnkInt64Lit: discard
   of nnkFloatLit..nnkFloat64Lit, nnkStrLit..nnkTripleStrLit: discard
   of nnkIdent, nnkSym, nnkNone: discard
@@ -147,6 +154,15 @@ proc `[]`*(v: PPyRef, key: PPyRef) : PPyRef =
 
 proc `[]=`*(mapping, key, val: PPyRef): void =
   discard check(PyObject_SetItem(mapping.p, key.p, val.p))
+
+proc `*`*(a,b:PPyRef): PPyRef = PyNumber_Multiply(a.p,b.p)
+proc `+`*(a,b:PPyRef): PPyRef = PyNumber_Add(a.p,b.p)
+proc `-`*(a,b:PPyRef): PPyRef = PyNumber_Subtract(a.p,b.p)
+proc `/`*(a,b:PPyRef): PPyRef = PyNumber_TrueDivide(a.p,b.p)
+proc `%`*(a,b:PPyRef): PPyRef = PyNumber_Remainder(a.p,b.p)
+proc `-`*(a:PPyRef): PPyRef = PyNumber_Negative(a.p)
+proc `+`*(a:PPyRef): PPyRef = PyNumber_Positive(a.p)
+proc abs*(a:PPyRef): PPyRef = PyNumber_Absolute(a.p)
 
 proc eval*(c: PContext, src: cstring) : PPyRef =
   PyRun_String(src, eval_input, c.globals.p, c.locals.p)
