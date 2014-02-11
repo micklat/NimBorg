@@ -20,7 +20,7 @@ type
     p: PPyObject
   PPyRef* = ref PyRef
 
-  EPyException = object of E_Base
+  EPython = object of E_Base
 
   Context = object 
     globals*, locals*: PPyRef 
@@ -42,7 +42,7 @@ proc `$`*(o: PPyRef) : string
 
 proc handle_error(s : string) =
   PyErr_Print()
-  raise newException(EPyException, s)
+  raise newException(EPython, s)
 
 proc check(p: PPyObject) : PPyObject =
   if p == nil: handle_error("check(nil)")

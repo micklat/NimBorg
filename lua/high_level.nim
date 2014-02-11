@@ -10,7 +10,7 @@ type
   # wrap a LuaState in an object, to facilitate future use of destructors:
   LuaState = object {.byref.}
     L*: lua.PState
-  PLuaState = ref LuaState
+  PLuaState* = ref LuaState
 
   # A non-borrowed (counted) reference. Avoid copying these around! Nimrod 
   # doesn't have the equivalent of an assignment constructor (yet?), so any
@@ -18,7 +18,10 @@ type
   LuaRef = object {.byref.}
     state: PLuaState # prevents the lua state from being GC'd while this ref is alive
     r*: cint
-  PLuaRef = ref LuaRef
+  PLuaRef* = ref LuaRef
+
+  ELua* = object of E_Base
+  ELuaTypeError* = object of ELua
 
 #-------------------------------------------------------------------------------
 # lifetime management
@@ -83,20 +86,24 @@ proc `[]`*[K](table: PLuaRef, key:K): PLuaRef =
 
 #------------------------------
 
-proc to_int*(x: PLuaRef): int = 
+proc to_int*(x: PLuaRef): Integer = 
   lua_push(x)
   result = lua.tointeger(x.state.L, -1)
   lua.pop(x.state.L, 1)
 
-proc to_float*(x: PLuaRef): lua.Number =
+proc to_float*(x: PLuaRef): Number =
   lua_push(x)
   result = lua.tonumber(x.state.L, -1)
   lua.pop(x.state.L, 1)
 
 proc to_string(x: PLuaRef): string =
   lua_push(x)
-  # TODO: error handling. E.g., this doesn't work for table objects.
-  result = $lua.tostring(x.state.L, -1)
-  lua.pop(x.state.L, 1)
+  try:
+    if lua.isstring(x.state.L, -1) != 0:
+      result = $lua.tostring(x.state.L, -1)
+    else:
+      raise newException(ELuaTypeError, "This lua object is not immediately convertible to string")
+  finally: 
+    lua.pop(x.state.L, 1)
 
 proc `$`*(x: PLuaRef): string {.inline.} = to_string(x)

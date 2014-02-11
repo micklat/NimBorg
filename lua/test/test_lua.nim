@@ -1,11 +1,12 @@
-import NimBorg/lua/high_level
+import NimBorg/lua/high_level as lua_hl
 
-let s = new_state()
+let s = lua_hl.new_state()
 let d = s.new_table()
 d["name"] = "fred"
 d["age"] = 42
-# It doesn't look like lua_tostring would agree to convert any input to string,
-# so for now we can only print the table's values, rather than the table itself.
-#echo d
+try:
+  echo d # won't work, tables are not natively convertible to string
+except lua_hl.ELuaTypeError:
+  echo "exception duly raised"
 echo d["name"], " ", d["age"]
 assert(to_int(d["age"])==42)

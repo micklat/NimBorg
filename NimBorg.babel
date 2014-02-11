@@ -1,0 +1,9 @@
+[Package]
+name: "NimBorg"
+version: "0.0.1"
+author: "Andreas Rumpf & Micky Latowicki"
+description: "Both low-level and high-level wrappers to interface with foreign languages"
+license: "MIT"
+
+[Deps]
+requires: "nimrod > 0.9.2"

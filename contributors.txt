@@ -1,0 +1,8 @@
+This package contains the work of the following authors:
+
+Andreas Rumpf
+Dr. Dietmar Budelsky
+TeCGraf
+Lavergne Thomas
+Bram Kuijvenhoven
+Micky Latowicki
