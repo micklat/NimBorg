@@ -1,4 +1,4 @@
-import NimBorg/lua_hl
+import NimBorg/lua/high_level
 
 let s = new_state()
 let x = s.new_table()

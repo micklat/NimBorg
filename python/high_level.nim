@@ -9,7 +9,7 @@
 # * don't print exceptions, retrieve the exception information into nimrod
 #
 
-import python except expr
+import NimBorg/python/low_level except expr
 import macros
 
 type

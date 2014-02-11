@@ -1,4 +1,4 @@
-import NimBorg/py2
+import NimBorg/python/high_level
 import math
 
 let interpreter = init_python()

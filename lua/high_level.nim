@@ -1,5 +1,5 @@
-from lua import REGISTRYINDEX, Integer, Number
-from lauxlib import NOREF, unref, reference
+from low_level/lua import REGISTRYINDEX, Integer, Number
+from low_level/lauxlib import NOREF, unref, reference
 
 # TODO: 
 #
