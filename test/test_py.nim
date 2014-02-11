@@ -2,7 +2,6 @@ import NimBorg/py2
 import math
 
 echo "the current working directory is:"
-#let getcwd = py_import("os")->getcwd
 echo(~py_import("os").getcwd())
 
 echo ""
@@ -25,4 +24,13 @@ assert(nim_pi==math.pi)
 # check implicit conversion
 assert(float_from_py(4.2)==4.2)
 
-
+# for some reason, the compiler refuses to apply a converter that
+# takes either an array or an openarray as input, so I can only auto-convert
+# seqs to PPyRef. Thus, the RHS of assignment can contain seqs, but not 
+# arrays.
+let d = init_dict()
+d["name"] = "fred"
+d["age"] = 42
+d["coordinates"] = @[10.2, -13.2]
+d["phones"] = @["0552-1234567", "1122-7009162"]
+echo d

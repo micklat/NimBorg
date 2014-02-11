@@ -2,7 +2,6 @@
 
 # short-term TODO:
 #
-# * check whether the destructor gets called at all
 # * support more of the API
 #
 # mid-range TODO:
@@ -36,6 +35,7 @@ proc builtins*() : PPyRef
 proc `()`*(f: PPyRef, args: varargs[PPyRef,to_py]): PPyRef {.discardable.}
 proc init_dict*(): PPyRef
 proc init_list*(size: int): PPyRef
+proc `$`*(o: PPyRef) : string
 
 #-------------------------------------------------------------------------------
 # error handling
@@ -55,21 +55,21 @@ proc check(x: int) : int =
 #-------------------------------------------------------------------------------
 # lifetime management
 
-proc dup*(src: PPyRef) : PPyRef = 
-  new result
-  result.p = src.p
-  Py_INCREF(result.p)
+proc ref_count*(o: PPyRef): int = o.p.ob_refcnt
 
-proc destroy(o: var PyRef) {.destructor.} =
+proc finalize_pyref(o: PPyRef) =
   if o.p != nil:
     Py_DECREF(o.p)
     o.p = nil
 
-converter to_PPyRef*(p: PPyObject) : PPyRef = 
-  new result
-  result.p = check(p)
+proc dup*(src: PPyRef) : PPyRef = 
+  new(result, finalize_pyref)
+  result.p = src.p
+  Py_INCREF(result.p)
 
-proc ref_count*(o: PPyRef): int = o.p.ob_refcnt
+converter to_PPyRef*(p: PPyObject) : PPyRef = 
+  new(result, finalize_pyref)
+  result.p = check(p)
 
 #-------------------------------------------------------------------------------
 # conversion of nimrod values to/from python values
@@ -88,9 +88,12 @@ proc to_list*(vals: openarray[PPyRef]): PPyRef =
     Py_INCREF(p)
     discard check(PyList_SetItem(result.p, i, p))
 
-proc to_py*[T](vals: openarray[T]): PPyRef = to_list(map[T,PPyRef](vals, to_py))
+# doesn't work as a converter, I don't know why
+proc to_py*[T](vals: openarray[T]): PPyRef = 
+  to_list(map[T,PPyRef](vals, to_py))
 
-converter to_py*[T](vals: seq[T]): PPyRef = to_list(map[T,PPyRef](vals, to_py))
+converter to_py*[T](vals: seq[T]): PPyRef = 
+  to_list(map[T,PPyRef](vals, to_py))
 
 proc to_tuple*(vals: openarray[PPyRef]): PPyRef = 
   let size = vals.len
@@ -221,11 +224,11 @@ proc init_context*() : PContext =
 type
   Interpreter = object {.bycopy.} 
 
-proc make_interpreter() : Interpreter =
-  Py_Initialize()
-  result = Interpreter()
-  
-proc destroy(interpreter : Interpreter) {.destructor.} =
+proc finalize_interpreter(interpreter : ref Interpreter) =
   Py_Finalize()
 
-var py_interpreter = make_interpreter()
+proc init_interpreter() : ref Interpreter =
+  new(result, finalize_interpreter)
+  Py_Initialize()
+
+var py_interpreter = init_interpreter()
