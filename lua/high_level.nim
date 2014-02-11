@@ -3,6 +3,7 @@ from low_level/lauxlib import NOREF, unref, reference
 
 # TODO: 
 #
+# * error handling
 # * each proc should check that its args belong to the same lua state
 
 type
@@ -94,6 +95,7 @@ proc to_float*(x: PLuaRef): lua.Number =
 
 proc to_string(x: PLuaRef): string =
   lua_push(x)
+  # TODO: error handling. E.g., this doesn't work for table objects.
   result = $lua.tostring(x.state.L, -1)
   lua.pop(x.state.L, 1)
 

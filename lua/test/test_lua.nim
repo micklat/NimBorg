@@ -1,7 +1,11 @@
 import NimBorg/lua/high_level
 
 let s = new_state()
-let x = s.new_table()
-x[1] = 13
-echo x[1]
-assert(to_int(x[1])==13)
+let d = s.new_table()
+d["name"] = "fred"
+d["age"] = 42
+# It doesn't look like lua_tostring would agree to convert any input to string,
+# so for now we can only print the table's values, rather than the table itself.
+#echo d
+echo d["name"], " ", d["age"]
+assert(to_int(d["age"])==42)
