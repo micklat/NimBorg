@@ -223,12 +223,12 @@ proc init_context*() : PContext =
 
 type
   Interpreter = object {.bycopy.} 
+  PInterpreter* = ref Interpreter
 
-proc finalize_interpreter(interpreter : ref Interpreter) =
+proc finalize_interpreter(interpreter : PInterpreter) =
   Py_Finalize()
 
-proc init_interpreter() : ref Interpreter =
+proc init_python*() : PInterpreter =
   new(result, finalize_interpreter)
   Py_Initialize()
 
-var py_interpreter = init_interpreter()

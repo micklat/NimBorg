@@ -1,6 +1,8 @@
 import NimBorg/py2
 import math
 
+let interpreter = init_python()
+
 echo "the current working directory is:"
 echo(~py_import("os").getcwd())
 

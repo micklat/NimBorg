@@ -1,5 +1,6 @@
 import NimBorg/py2
 
+let interpreter = init_python()
 let c = init_context()
 c.globals["x"] = 42
 c.locals["y"] = 10

@@ -1,5 +1,6 @@
 import NimBorg/py2
-from python import PyList_New
+
+let interpreter = init_python()
 
 let n = 100
 let lx = init_list(n)
