@@ -1,6 +1,5 @@
 import nim_lua/high_level as lua_hl
 from math import pi
-from macros import `$`
 
 let s = lua_hl.new_lua_state()
 let d = s.lua_table
