@@ -1,4 +1,4 @@
-# A high-level wrapper for python 2.x (thus the name "py2.nim" rather than "py.nim")
+# A high-level wrapper for python 2.x
 
 # short-term TODO:
 #

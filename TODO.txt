@@ -1,0 +1,12 @@
+most urgently needed:
+* functionality (e.g. call lua functions, override lua's dot)
+* API docs
+* internals docs
+
+lower priority
+* replace init_list etc. with py_list as suggested by renesac
+* pass nimrod functions to the foreign runtime? (might be a mess for GC)
+* efficient access to numpy arrays (suggested by renesac)
+* read through the Julia discussion here and pick some ideas
+https://groups.google.com/forum/#!msg/julia-dev/YftOOEfcwrk/7q3cm2y3Xs4J
+

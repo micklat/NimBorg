@@ -78,6 +78,7 @@ const
 
 proc upvalueindex*(I: cint): cint
 const                         # thread status; 0 is OK 
+  OK* = 0
   constYIELD* = 1
   ERRRUN* = 2
   ERRSYNTAX* = 3
