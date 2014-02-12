@@ -1,0 +1,30 @@
+-------------------
+High-level bindings
+-------------------
+
+See the test for usage examples of the features below:
+
+* first, import the high-level lua bindings into your module:
+
+  import NimBorg/lua/high_level
+
+* all nimrod-accessible lua objects are wrapped with a reference of
+type PLuaRef.
+
+* create a lua state object with a call to new_lua_state()
+
+* evaluate lua expressions with eval: state.eval("4+2") returns PLuaRef 
+that wraps the number 6.
+
+* create table objects using state.lua_table()
+
+* lua objects support these operations:
+- subscripted access and assignment, e.g. person["age"] = person["age"]+1
+- function invocation such as f(x, y, z), with implicit conversion of arguments
+to lua values.
+- conversion to int, float or string
+
+Low-level bindings
+-------------------
+The low-level bindings are a copy of the bindings by Andreas Rumpf, with very small modifications.
+The reader is referred to lua's documentation, which the low-level bindings follow very closely.
