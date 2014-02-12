@@ -1,5 +1,6 @@
 import NimBorg/lua/high_level as lua_hl
 from math import pi
+from macros import `$`
 
 let s = lua_hl.new_state()
 let d = s.new_table
@@ -18,11 +19,7 @@ assert(to_int(s.eval("4+3"))==7)
 let lua_math = s.eval("math")
 let lua_cos = lua_math["cos"]
 let lua_sin = s.eval("math.sin")
-echo call_with_lua_refs(lua_cos, to_ref(lua_cos.state, pi/3))
-echo call_with_lua_refs(lua_sin, to_ref(lua_cos.state, pi/6))
-
-when false:
-  # this currently fails due to https://github.com/Araq/Nimrod/issues/904
-  echo lua_cos(pi/3), lua_sin(pi/6)
+assert(abs(math.cos(pi/3)-to_float(lua_cos(pi/3))) < 0.000001)
+assert(abs(math.sin(pi/6)-to_float(lua_sin(pi/6))) < 0.000001)
 
 

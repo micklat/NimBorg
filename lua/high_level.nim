@@ -4,7 +4,7 @@ from low_level/lauxlib import NOREF, unref, reference
 from macros import newCall, gensym, quote, bindSym, len, `[]`, add, `$`,
   newNimNode, newDotExpr, newIdentNode, nnkStmtListExpr, newLetStmt, 
   toStrLit, treeRepr, lispRepr
-from strutils import format
+from strutils import format, `%`
 
 # TODO: 
 #
@@ -45,6 +45,8 @@ proc finalize_luaref(o: PLuaRef) =
 proc pop_ref*(state: PLuaState): PLuaRef {.inline.} =
   new(result, finalize_luaref)
   result.state = state
+  #echo "gettop=", lua.gettop(state.L)
+  assert(lua.gettop(state.L)>0)
   result.r = reference(state.L, REGISTRYINDEX)
 
 #------------------------------------------------------------
@@ -59,7 +61,10 @@ proc lua_push*(s: PLuaState, x:float) = lua.pushnumber(s.L, x)
 proc lua_push*(s: PLuaState, x:bool) = lua.pushboolean(s.L, ord(x))
 
 proc lua_push*(x: PLuaRef): void = 
+  assert(x!=nil)
+  #echo "calling rawgeti(L, REGISTRYINDEX, $1)" % $x.r
   lua.rawgeti(x.state.L, REGISTRYINDEX, x.r)
+  #echo "lua type of returned value is ", lua.luatype(x.state.L, -1)
 
 proc len*(x: PLuaRef): cint = lua.objlen(x.state.L, x.r) 
 
@@ -157,6 +162,14 @@ proc `[]`*[K](table: PLuaRef, key:K): PLuaRef =
 
 proc `$`*(x: PLuaRef): string {.inline.} = to_string(x)
 
+proc peek*(s: PLuaState): string =
+  if lua.gettop(s.L)==0:
+    return "NA"
+  let t = lua.luatype(s.L, -1)
+  if lua.isstring(s.L, -1) != 0:
+    return format("$1{$2}", $lua.tostring(s.L, -1), t)
+  return "non-stringable{$1}" % $t
+  
 proc call_with_lua_refs(f: PLuaRef, args: varargs[PLuaRef]): PLuaRef =
   let s = f.state
   lua_push(f)
@@ -164,26 +177,41 @@ proc call_with_lua_refs(f: PLuaRef, args: varargs[PLuaRef]): PLuaRef =
     lua_push(args[i])
   let err_code = lua.pcall(s.L, cint(args.len), 1, 0)
   if err_code == lua.OK:
+    #echo "call result is: ", peek(s)
     result = pop_ref(s)
   else:
+    #echo "call failed ($1)" % $err_code
     let err_text = pop_ref(s)
     lua_error(err_code, to_string(err_text))
+  assert(result!=nil)
 
 # I need a macro to apply to_ref to every argument of a lua function
 # converters can't work here because I need the state from the lua function 
 # as a parameter for to_ref.
-macro `()`*(f: PLuaRef, args: varargs[expr]): expr =
-  # I want something like: 
-  # (let temp_f = f; let s = temp_f.state; lua_call(temp_f, to_ref(s, arg1), to_ref(s, arg2), ...))
-  # and the last expression is handled with usual operator overloading
-  let temp_f = gensym(ident="func")
-  let state = gensym(ident="state")
-  var call_node = newCall(bindSym"call_with_lua_refs", temp_f)
+macro mk_refs_and_call(f: PLuaRef, args: varargs[expr]): PLuaRef =
+  # I avoid a "let" here because of https://github.com/Araq/Nimrod/issues/904
+  # instead, there's a "let" in `()`.
+  # 
+  # this macro produces:
+  #   call_with_lua_refs(f, to_ref(f.state, arg1), to_ref(f.state, arg2), ...))
+  #
+  result = newCall(bindSym"call_with_lua_refs", f)
   for i in 0..len(args)-1:
-    call_node.add(newCall(bindSym"to_ref", state, args[i]))
-  result = newNimNode(nnkStmtListExpr)
-  result.add(newLetStmt(temp_f, f))
-  result.add(newLetStmt(state, newDotExpr(f, newIdentNode("state"))))
-  result.add(call_node)
-  echo lispRepr(result)
+    let state = newDotExpr(f, newIdentNode("state"))
+    result.add(newCall(bindSym"to_ref", state, args[i]))
+  #echo "mk_refs_and_call produced: ", toStrLit(result)
   #echo treeRepr(result)
+
+template work_around_bug904(f: PLuaRef, args: varargs[expr]): PLuaRef = 
+  bind mk_refs_and_call
+  # I would have preferred to write:
+  #   let f_val = f
+  #   mk_refs_and_call(f_val, args)
+  # but I must avoid 'let' at all costs:
+  (proc(f_val: PLuaRef): PLuaRef = mk_refs_and_call(f_val, args))(f)
+
+# Dear reader: I apologize for this. These gymnastics will be removed once 
+# https://github.com/Araq/Nimrod/issues/904 is fixed.
+template `()`*(f: PLuaRef, args: varargs[expr]): PLuaRef = 
+  bind work_around_bug904
+  work_around_bug904(f, args)
