@@ -1,5 +1,5 @@
 most urgently needed:
-* functionality (e.g. call lua functions, override lua's dot)
+* "override the dot" for lua (that is, implement ~ for PLuaRef)
 * API docs
 * internals docs
 
