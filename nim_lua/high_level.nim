@@ -1,10 +1,9 @@
 from low_level/lua import REGISTRYINDEX, Integer, Number
 from low_level/lualib import nil
 from low_level/lauxlib import NOREF, unref, reference
-from macros import newCall, gensym, quote, bindSym, len, `[]`, add, `$`,
-  newNimNode, newDotExpr, newIdentNode, nnkStmtListExpr, newLetStmt, 
-  toStrLit, treeRepr, lispRepr
+import macros
 from strutils import format, `%`
+import nimborg_common
 
 # TODO: 
 #
@@ -151,13 +150,17 @@ proc `[]=`*[K,V](table: PLuaRef, key: K, val: V): void =
   lua.settable(table.state.L, -3)
   lua.pop(table.state.L, 1)
   
-proc `[]`*[K](table: PLuaRef, key:K): PLuaRef = 
+proc lookupKey[K](table: PLuaRef, key: K): PLuaRef =
   let s = table.state
   luaPush(table)
   luaPush(s, key)
   lua.gettable(s.L, -2)
   result = popRef(s)
   lua.pop(table.state.L, 1)
+
+proc lookupName(table: PLuaRef, key: cstring): PLuaRef = lookupKey[cstring](table, key)
+
+proc `[]`*[K](table: PLuaRef, key:K): PLuaRef = lookupKey[K](table, key)
 
 proc `$`*(x: PLuaRef): string {.inline.} = toString(x)
 
@@ -214,3 +217,18 @@ template workAroundBug904(f: PLuaRef, args: varargs[expr]): PLuaRef =
 template `()`*(f: PLuaRef, args: varargs[expr]): PLuaRef = 
   bind workAroundBug904
   workAroundBug904(f, args)
+
+#-------------------------------------------------------------------------------
+# ~a.b : syntactic sugar for a["b"]
+
+# distinguish between accesses to lua objects and to nimrod objects
+# based on the object's type.
+macro resolveDot(obj: expr, field: string): expr = 
+  result = resolveNimrodDot(obj, strVal(field))
+
+macro resolveDot(obj: PLuaRef, field: string): expr = 
+  result = newCall(bindSym"lookupName", obj, newStrLitNode(strVal(field)))
+
+macro `~`*(a: expr) : expr {.immediate.} = 
+  result = replaceDots(a, bindSym"resolveDot")
+

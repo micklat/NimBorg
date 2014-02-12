@@ -9,8 +9,8 @@ try:
   echo d # won't work, tables are not natively convertible to string
 except luaHL.ELuaTypeError:
   echo "exception duly raised and caught"
-echo d["name"], " ", d["age"]
-assert(toInt(d["age"])==42)
+echo(~d.name, " ", d["age"])
+assert(toInt(~d.age)==42)
 
 s.eval("print('99 bottles of beer on the wall')")
 

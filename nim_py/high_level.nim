@@ -10,6 +10,7 @@
 #
 
 import nim_py/low_level except expr
+import nimborg_common
 import macros
 
 type
@@ -120,43 +121,18 @@ proc floatFromPy*(o: PPyRef) : float =
       handleError("failed conversion to float")
 
 #-------------------------------------------------------------------------------
-# ~ : syntactic sugar for getattr
+# ~a.b : syntactic sugar for getattr(a,"b")
 
 # distinguish between accesses to python objects and to nimrod objects
 # based on the object's type.
 macro resolveDot(obj: expr, field: string): expr = 
-  result = newDotExpr(obj, newIdentNode(!strVal(field)))
-  #echo "re-created ", repr(result)
-macro resolveDot(obj: PPyRef, field: string): expr = 
-  #echo "resolving ", strVal(field), " in ", repr(obj)
-  result = newCall(bindSym"getattr", obj, newStrLitNode(strVal(field)))
-  #echo "resolved"
+  result = resolveNimrodDot(obj, strVal(field))
 
-# This is a temporary kludge until '.' can be overloaded. However,
-# it doesn't seem like that's gonna happen until version 1 or even
-# later, see the IRC logs for 2014-02-09.
-proc replaceDots(a: expr): expr {.compileTime.} =
-  #echo(repr(a))
-  result = a
-  let lookup = bindSym"resolve_dot"
-  case a.kind
-  of nnkDotExpr: 
-    expectLen(a, 2)
-    expectKind(a[1], nnkIdent)
-    # defer the distinction between python member lookup and nimrod member
-    # lookup to the type-checking phase.
-    #echo("looking up ", repr(a[1]), " in ", repr(replaceDots(a[0])))
-    result = newCall(lookup, replaceDots(a[0]), toStrLit(a[1]))
-  of nnkEmpty, nnkNilLit, nnkCharLit..nnkInt64Lit: discard
-  of nnkFloatLit..nnkFloat64Lit, nnkStrLit..nnkTripleStrLit: discard
-  of nnkIdent, nnkSym, nnkNone: discard
-  else:
-    result = newNimNode(a.kind)
-    for i in 0..a.len-1:
-      result.add(replaceDots(a[i]))
+macro resolveDot(obj: PPyRef, field: string): expr = 
+  result = newCall(bindSym"getattr", obj, newStrLitNode(strVal(field)))
 
 macro `~`*(a: expr) : expr {.immediate.} = 
-  result = replaceDots(a)
+  result = replaceDots(a, bindSym"resolveDot")
 
 #-------------------------------------------------------------------------------
 # common object properties
