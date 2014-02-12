@@ -5,7 +5,7 @@ The quickest way to learn how to use the bindings is to browse the tests.
 
 * first, import the high-level python bindings into your module:
 
-  import NimBorg/python/high_level
+  import nim_py/high_level
 
 * all nimrod-accessible python objects are wrapped with a reference of
 type PPyRef.

@@ -1,4 +1,4 @@
-import NimBorg/python/high_level
+import nim_py/high_level
 
 let n = 100
 let lx = py_list(n)

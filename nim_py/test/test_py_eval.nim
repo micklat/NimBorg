@@ -1,4 +1,4 @@
-import NimBorg/python/high_level
+import nim_py/high_level
 
 let c = init_context()
 c.globals["x"] = 42

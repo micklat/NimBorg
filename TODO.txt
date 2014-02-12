@@ -1,10 +1,8 @@
 most urgently needed:
-* babel support
 * internals docs
 * "override the dot" for lua (that is, implement ~ for PLuaRef)
 
 lower priority
-* create separate doc folders, one for python and one for lua
 * change the python API to work more like the lua API. The PyRefs and the PyContexts 
 should hold a reference to the Interpreter so that it isn't collected before they are.
 * pass nimrod functions to the foreign runtime? (might be a mess for GC)

@@ -1,4 +1,4 @@
-import NimBorg/lua/high_level as lua_hl
+import nim_lua/high_level as lua_hl
 from math import pi
 from macros import `$`
 
