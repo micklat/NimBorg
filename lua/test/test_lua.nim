@@ -2,14 +2,14 @@ import NimBorg/lua/high_level as lua_hl
 from math import pi
 from macros import `$`
 
-let s = lua_hl.new_state()
-let d = s.new_table
+let s = lua_hl.new_lua_state()
+let d = s.lua_table
 d["name"] = "fred"
 d["age"] = 42
 try:
   echo d # won't work, tables are not natively convertible to string
 except lua_hl.ELuaTypeError:
-  echo "exception duly raised"
+  echo "exception duly raised and caught"
 echo d["name"], " ", d["age"]
 assert(to_int(d["age"])==42)
 

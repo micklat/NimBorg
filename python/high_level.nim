@@ -33,8 +33,8 @@ proc `[]`*(v: PPyRef, key: PPyRef) : PPyRef
 proc `[]=`*(mapping, key, val: PPyRef): void
 proc builtins*() : PPyRef
 proc `()`*(f: PPyRef, args: varargs[PPyRef,to_py]): PPyRef {.discardable.}
-proc init_dict*(): PPyRef
-proc init_list*(size: int): PPyRef
+proc py_dict*(): PPyRef
+proc py_list*(size: int): PPyRef
 proc `$`*(o: PPyRef) : string
 
 #-------------------------------------------------------------------------------
@@ -75,25 +75,25 @@ converter to_PPyRef*(p: PPyObject) : PPyRef =
 # conversion of nimrod values to/from python values
 
 proc to_py*(x: PPyRef) : PPyRef = x
-converter to_py*(f: float) : PPyRef = PyFloat_fromDouble(f)
-converter to_py*(i: int) : PPyRef = 
+converter to_py*(f: float) : PPyRef{.procvar.} = PyFloat_fromDouble(f)
+converter to_py*(i: int) : PPyRef {.procvar.} = 
   result = PyInt_FromLong(int32(i))
-converter to_py*(s: cstring) : PPyRef = PyString_fromString(s)
-converter to_py*(s: string) : PPyRef = to_py(cstring(s))
+converter to_py*(s: cstring) : PPyRef {.procvar.} = PyString_fromString(s)
+converter to_py*(s: string) : PPyRef {.procvar.} = to_py(cstring(s))
 
 proc to_list*(vals: openarray[PPyRef]): PPyRef =
-  result = init_list(len(vals))
+  result = py_list(len(vals))
   for i in 0..len(vals)-1:
     let p = vals[i].p
     Py_INCREF(p)
     discard check(PyList_SetItem(result.p, i, p))
 
 # doesn't work as a converter, I don't know why
-proc to_py*[T](vals: openarray[T]): PPyRef = 
-  to_list(map[T,PPyRef](vals, to_py))
+proc to_py*[T](vals: openarray[T]): PPyRef {.procvar.} = 
+  to_list(map[T,PPyRef](vals, (proc(x:T): PPyRef = to_py(x))))
 
-converter to_py*[T](vals: seq[T]): PPyRef = 
-  to_list(map[T,PPyRef](vals, to_py))
+converter to_py*[T](vals: seq[T]): PPyRef {.procvar.} = 
+  to_list(map[T,PPyRef](vals, (proc(x:T): PPyRef = to_py(x))))
 
 proc to_tuple*(vals: openarray[PPyRef]): PPyRef = 
   let size = vals.len
@@ -194,9 +194,9 @@ proc abs*(a:PPyRef): PPyRef = PyNumber_Absolute(a.p)
 #------------------------------------------------------------------------------
 # containers
 
-proc init_dict*(): PPyRef = PyDict_New()
+proc py_dict*(): PPyRef = PyDict_New()
 
-proc init_list*(size: int): PPyRef = 
+proc py_list*(size: int): PPyRef = 
   result = PyList_New(size)
   for i in 0..size-1:
     Py_INCREF(Py_None)
@@ -216,19 +216,32 @@ proc py_import*(name : cstring) : PPyRef =
 
 proc init_context*() : PContext = 
   new result
-  result.locals = init_dict()
-  result.globals = init_dict()
+  result.locals = py_dict()
+  result.globals = py_dict()
   result.globals["__builtins__"] = builtins()
   result.globals["__builtins__"] = builtins()
 
-type
-  Interpreter = object {.bycopy.} 
-  PInterpreter* = ref Interpreter
+const 
+  GC_the_python_interpreter = false
 
-proc finalize_interpreter(interpreter : PInterpreter) =
-  Py_Finalize()
+when GC_the_python_interpreter:
+  type
+    Interpreter = object {.bycopy.} 
+    PInterpreter* = ref Interpreter
 
-proc init_python*() : PInterpreter =
-  new(result, finalize_interpreter)
+  proc finalize_interpreter(interpreter : PInterpreter) =
+    Py_Finalize()
+
+  # init_python is not useful yet. Before I let users call this,
+  # I must add and maintain a reference to the interpreter
+  # in each PyRef, as is done with lua states.
+  # The reason is that the python references are unsafe if
+  # the interpreter is finalized, so they semantically depend
+  # upon the interpreter, even though the interpreter is not
+  # passed to the python/C API routines.
+  proc init_python() : PInterpreter =
+    new(result, finalize_interpreter)
+    Py_Initialize()
+else:
+  # temporary kludge, until I adopt the lua convention
   Py_Initialize()
-

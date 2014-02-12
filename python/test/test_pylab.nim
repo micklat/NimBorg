@@ -1,10 +1,8 @@
 import NimBorg/python/high_level
 
-let interpreter = init_python()
-
 let n = 100
-let lx = init_list(n)
-let ly = init_list(n)
+let lx = py_list(n)
+let ly = py_list(n)
 let py_sin = ~py_import("math").sin
 for i in 0..n-1:
   lx[i] = float(i)*0.1

@@ -16,15 +16,15 @@ from strutils import format, `%`
 type
   # wrap a LuaState in an object, to facilitate future use of destructors:
   LuaState = object {.byref.}
-    L*: lua.PState
+    L: lua.PState
   PLuaState* = ref LuaState
 
   # A non-borrowed (counted) reference. Avoid copying these around! Nimrod 
   # doesn't have the equivalent of an assignment constructor (yet?), so any
   # copy of a LuaRef must be counted (use dup for that).
   LuaRef = object {.byref.}
-    state*: PLuaState # prevents the lua state from being GC'd while this ref is alive
-    r*: cint
+    state: PLuaState # prevents the lua state from being GC'd while this ref is alive
+    r: cint
   PLuaRef* = ref LuaRef
 
   ELua* = object of E_Base
@@ -81,7 +81,7 @@ proc finalize_luastate(s: PLuaState) =
     lua.close(s.L)
     s.L = nil
 
-proc new_state*(open_std_libs=true) : PLuaState =
+proc new_lua_state*(open_std_libs=true) : PLuaState =
   let L = lauxlib.newstate()
   if L==nil:
     raise newException(EOutOfMemory, "failure in lua_newstate()")
@@ -89,7 +89,7 @@ proc new_state*(open_std_libs=true) : PLuaState =
   result.L = L
   if open_std_libs: result.open_libs()
 
-proc new_table*(s: PLuaState): PLuaRef = 
+proc lua_table*(s: PLuaState): PLuaRef = 
   lua.newtable(s.L)
   result = s.pop_ref
 
