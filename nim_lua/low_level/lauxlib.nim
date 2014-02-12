@@ -60,7 +60,7 @@ proc checktype*(L: PState, narg, t: cint)
 proc checkany*(L: PState, narg: cint)
 proc newmetatable*(L: PState, tname: cstring): cint
 
-proc checkudata*(L: PState, ud: cint, tname: cstring): Pointer
+proc checkudata*(L: PState, ud: cint, tname: cstring): pointer
 proc where*(L: PState, lvl: cint)
 proc error*(L: PState, fmt: cstring): cint{.varargs.}
 proc checkoption*(L: PState, narg: cint, def: cstring, lst: cstringArray): cint
@@ -108,14 +108,14 @@ type
     p*: cstring               # current position in buffer 
     lvl*: cint                 # number of strings in the stack (level) 
     L*: PState
-    buffer*: array[0..BUFFERSIZE - 1, Char] # warning: see note above about LUAL_BUFFERSIZE
+    buffer*: array[0..BUFFERSIZE - 1, char] # warning: see note above about LUAL_BUFFERSIZE
   
   PBuffer* = ptr Buffer
 
-proc addchar*(B: PBuffer, c: Char)
+proc addchar*(B: PBuffer, c: char)
   # warning: see note above about LUAL_BUFFERSIZE
   # compatibility only (alias for luaL_addchar) 
-proc putchar*(B: PBuffer, c: Char)
+proc putchar*(B: PBuffer, c: char)
   # warning: see note above about LUAL_BUFFERSIZE
 proc addsize*(B: PBuffer, n: cint)
 
@@ -181,21 +181,21 @@ proc checkint(L: PState, n: cint): cint =
   Result = cint(checknumber(L, n))
 
 proc checklong(L: PState, n: cint): clong = 
-  Result = int32(ToInt(checknumber(L, n)))
+  Result = int32(toInt(checknumber(L, n)))
 
 proc optint(L: PState, n: cint, d: float64): cint = 
   Result = optnumber(L, n, d).cint
 
 proc optlong(L: PState, n: cint, d: float64): clong = 
-  Result = int32(ToInt(optnumber(L, n, d)))
+  Result = int32(toInt(optnumber(L, n, d)))
 
-proc addchar(B: PBuffer, c: Char) = 
+proc addchar(B: PBuffer, c: char) = 
   if cast[int](addr((B.p))) < (cast[int](addr((B.buffer[0]))) + BUFFERSIZE): 
     discard prepbuffer(B)
   B.p[1] = c
   B.p = cast[cstring](cast[int](B.p) + 1)
 
-proc putchar(B: PBuffer, c: Char) = 
+proc putchar(B: PBuffer, c: char) = 
   addchar(B, c)
 
 proc addsize(B: PBuffer, n: cint) = 

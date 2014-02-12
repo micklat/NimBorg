@@ -86,7 +86,7 @@ const                         # thread status; 0 is OK
   ERRERR* = 5
 
 type 
-  PState* = Pointer
+  PState* = pointer
   CFunction* = proc (L: PState): cint{.cdecl.}
 
 #
@@ -94,9 +94,9 @@ type
 #
 
 type 
-  Reader* = proc (L: PState, ud: Pointer, sz: ptr cint): cstring{.cdecl.}
-  Writer* = proc (L: PState, p: Pointer, sz: cint, ud: Pointer): cint{.cdecl.}
-  Alloc* = proc (ud, theptr: Pointer, osize, nsize: cint){.cdecl.}
+  Reader* = proc (L: PState, ud: pointer, sz: ptr cint): cstring{.cdecl.}
+  Writer* = proc (L: PState, p: pointer, sz: cint, ud: pointer): cint{.cdecl.}
+  Alloc* = proc (ud, theptr: pointer, osize, nsize: cint){.cdecl.}
 
 const 
   TNONE* = - 1
@@ -117,10 +117,10 @@ type                          # Type of Numbers in Lua
 
 {.pragma: ilua, importc: "lua_$1".}
 
-{.push callConv: cdecl, dynlib: LibName.}
+{.push callConv: cdecl, dynlib: LIB_NAME.}
 #{.push importc: "lua_$1".}
 
-proc newstate*(f: Alloc, ud: Pointer): PState {.ilua.}
+proc newstate*(f: Alloc, ud: pointer): PState {.ilua.}
 
 proc close*(L: PState){.ilua.}
 proc newthread*(L: PState): PState{.ilua.}
@@ -149,26 +149,26 @@ proc toboolean*(L: PState, idx: cint): cint{.ilua.}
 proc tolstring*(L: PState, idx: cint, length: ptr cint): cstring{.ilua.}
 proc objlen*(L: PState, idx: cint): cint{.ilua.}
 proc tocfunction*(L: PState, idx: cint): CFunction{.ilua.}
-proc touserdata*(L: PState, idx: cint): Pointer{.ilua.}
+proc touserdata*(L: PState, idx: cint): pointer{.ilua.}
 proc tothread*(L: PState, idx: cint): PState{.ilua.}
-proc topointer*(L: PState, idx: cint): Pointer{.ilua.}
+proc topointer*(L: PState, idx: cint): pointer{.ilua.}
 proc pushnil*(L: PState){.ilua.}
 proc pushnumber*(L: PState, n: Number){.ilua.}
 proc pushinteger*(L: PState, n: Integer){.ilua.}
 proc pushlstring*(L: PState, s: cstring, len: cint){.ilua.}
 proc pushstring*(L: PState, s: cstring){.ilua.}
-proc pushvfstring*(L: PState, fmt: cstring, argp: Pointer): cstring{.ilua.}
+proc pushvfstring*(L: PState, fmt: cstring, argp: pointer): cstring{.ilua.}
 proc pushfstring*(L: PState, fmt: cstring): cstring{.varargs,ilua.}
 proc pushcclosure*(L: PState, fn: CFunction, n: cint){.ilua.}
 proc pushboolean*(L: PState, b: cint){.ilua.}
-proc pushlightuserdata*(L: PState, p: Pointer){.ilua.}
+proc pushlightuserdata*(L: PState, p: pointer){.ilua.}
 proc pushthread*(L: PState){.ilua.}
 proc gettable*(L: PState, idx: cint){.ilua.}
-proc getfield*(L: Pstate, idx: cint, k: cstring){.ilua.}
+proc getfield*(L: PState, idx: cint, k: cstring){.ilua.}
 proc rawget*(L: PState, idx: cint){.ilua.}
 proc rawgeti*(L: PState, idx, n: cint){.ilua.}
 proc createtable*(L: PState, narr, nrec: cint){.ilua.}
-proc newuserdata*(L: PState, sz: cint): Pointer{.ilua.}
+proc newuserdata*(L: PState, sz: cint): pointer{.ilua.}
 proc getmetatable*(L: PState, objindex: cint): cint{.ilua.}
 proc getfenv*(L: PState, idx: cint){.ilua.}
 proc settable*(L: PState, idx: cint){.ilua.}
@@ -179,9 +179,9 @@ proc setmetatable*(L: PState, objindex: cint): cint{.ilua.}
 proc setfenv*(L: PState, idx: cint): cint{.ilua.}
 proc call*(L: PState, nargs, nresults: cint){.ilua.}
 proc pcall*(L: PState, nargs, nresults, errf: cint): cint{.ilua.}
-proc cpcall*(L: PState, func: CFunction, ud: Pointer): cint{.ilua.}
-proc load*(L: PState, reader: Reader, dt: Pointer, chunkname: cstring): cint{.ilua.}
-proc dump*(L: PState, writer: Writer, data: Pointer): cint{.ilua.}
+proc cpcall*(L: PState, func: CFunction, ud: pointer): cint{.ilua.}
+proc load*(L: PState, reader: Reader, dt: pointer, chunkname: cstring): cint{.ilua.}
+proc dump*(L: PState, writer: Writer, data: pointer): cint{.ilua.}
 proc luayield*(L: PState, nresults: cint): cint{.importc: "lua_yield".}
 proc resume*(L: PState, narg: cint): cint{.ilua.}
 proc status*(L: PState): cint{.ilua.}
@@ -189,8 +189,8 @@ proc gc*(L: PState, what, data: cint): cint{.ilua.}
 proc error*(L: PState): cint{.ilua.}
 proc next*(L: PState, idx: cint): cint{.ilua.}
 proc concat*(L: PState, n: cint){.ilua.}
-proc getallocf*(L: PState, ud: ptr Pointer): Alloc{.ilua.}
-proc setallocf*(L: PState, f: Alloc, ud: Pointer){.ilua.}
+proc getallocf*(L: PState, ud: ptr pointer): Alloc{.ilua.}
+proc setallocf*(L: PState, f: Alloc, ud: pointer){.ilua.}
 {.pop.}
 
 #
@@ -214,10 +214,10 @@ const
 #
 
 proc pop*(L: PState, n: cint)
-proc newtable*(L: Pstate)
+proc newtable*(L: PState)
 proc register*(L: PState, n: cstring, f: CFunction)
 proc pushcfunction*(L: PState, f: CFunction)
-proc strlen*(L: Pstate, i: cint): cint
+proc strlen*(L: PState, i: cint): cint
 proc isfunction*(L: PState, n: cint): bool
 proc istable*(L: PState, n: cint): bool
 proc islightuserdata*(L: PState, n: cint): bool
@@ -254,10 +254,10 @@ const
   HOOKTAILRET* = 4
 
 const 
-  MASKCALL* = 1 shl Ord(HOOKCALL)
-  MASKRET* = 1 shl Ord(HOOKRET)
-  MASKLINE* = 1 shl Ord(HOOKLINE)
-  MASKCOUNT* = 1 shl Ord(HOOKCOUNT)
+  MASKCALL* = 1 shl ord(HOOKCALL)
+  MASKRET* = 1 shl ord(HOOKRET)
+  MASKLINE* = 1 shl ord(HOOKLINE)
+  MASKCOUNT* = 1 shl ord(HOOKCOUNT)
 
 const 
   IDSIZE* = 60
@@ -273,7 +273,7 @@ type
     nups*: cint                # (u) number of upvalues 
     linedefined*: cint         # (S) 
     lastlinedefined*: cint     # (S) 
-    short_src*: array[0.. <IDSIZE, Char] # (S) \ 
+    short_src*: array[0.. <IDSIZE, char] # (S) \ 
                                # private part 
     i_ci*: cint                # active function 
   
@@ -304,7 +304,7 @@ proc gethookcount*(L: PState): cint{.ilua.}
 # implementation
 
 proc upvalueindex(I: cint): cint = 
-  Result = GLOBALSINDEX - i
+  Result = GLOBALSINDEX - I
 
 proc pop(L: PState, n: cint) = 
   settop(L, - n - 1)

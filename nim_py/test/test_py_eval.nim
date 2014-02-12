@@ -1,6 +1,6 @@
 import nim_py/high_level
 
-let c = init_context()
+let c = initContext()
 c.globals["x"] = 42
 c.locals["y"] = 10
 let res = $c.eval("float(x)/y**2")

@@ -10,3 +10,6 @@ should hold a reference to the Interpreter so that it isn't collected before the
 * read through the Julia discussion here and pick some ideas
 https://groups.google.com/forum/#!msg/julia-dev/YftOOEfcwrk/7q3cm2y3Xs4J
 
+blue sky
+* R (follow rpy2), java, ...
+

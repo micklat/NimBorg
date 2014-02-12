@@ -45,20 +45,20 @@ proc open_package*(L: PState): cint{.ilua.}
 proc openlibs*(L: PState){.importc: "luaL_openlibs".}
 {.pop.}
 
-proc baselibopen*(L: PState): Bool = 
+proc baselibopen*(L: PState): bool = 
   open_base(L) != 0'i32
 
-proc tablibopen*(L: PState): Bool = 
+proc tablibopen*(L: PState): bool = 
   open_table(L) != 0'i32
 
-proc iolibopen*(L: PState): Bool = 
+proc iolibopen*(L: PState): bool = 
   open_io(L) != 0'i32
 
-proc strlibopen*(L: PState): Bool = 
+proc strlibopen*(L: PState): bool = 
   open_string(L) != 0'i32
 
-proc mathlibopen*(L: PState): Bool = 
+proc mathlibopen*(L: PState): bool = 
   open_math(L) != 0'i32
 
-proc dblibopen*(L: PState): Bool = 
+proc dblibopen*(L: PState): bool = 
   open_debug(L) != 0'i32

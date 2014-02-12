@@ -1,13 +1,13 @@
 import nim_py/high_level
 
 let n = 100
-let lx = py_list(n)
-let ly = py_list(n)
-let py_sin = ~py_import("math").sin
+let lx = pyList(n)
+let ly = pyList(n)
+let py_sin = ~pyImport("math").sin
 for i in 0..n-1:
   lx[i] = float(i)*0.1
   ly[i] = py_sin(lx[i])
-let pylab = py_import("pylab")
+let pylab = pyImport("pylab")
 ~pylab.subplot(2,1,1)
 ~pylab.plot(lx, ly)
 ~pylab.title("sin(x)")

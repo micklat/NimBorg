@@ -33,69 +33,69 @@ proc `[]`*(v: PPyRef, key: PPyRef) : PPyRef
 proc `[]=`*(mapping, key, val: PPyRef): void
 proc builtins*() : PPyRef
 proc `()`*(f: PPyRef, args: varargs[PPyRef,to_py]): PPyRef {.discardable.}
-proc py_dict*(): PPyRef
-proc py_list*(size: int): PPyRef
+proc pyDict*(): PPyRef
+proc pyList*(size: int): PPyRef
 proc `$`*(o: PPyRef) : string
 
 #-------------------------------------------------------------------------------
 # error handling
 
-proc handle_error(s : string) =
+proc handleError(s : string) =
   PyErr_Print()
   raise newException(EPython, s)
 
 proc check(p: PPyObject) : PPyObject =
-  if p == nil: handle_error("check(nil)")
+  if p == nil: handleError("check(nil)")
   result = p
 
 proc check(x: int) : int =
-  if x == -1: handle_error("check(-1)")
+  if x == -1: handleError("check(-1)")
   result = x
 
 #-------------------------------------------------------------------------------
 # lifetime management
 
-proc ref_count*(o: PPyRef): int = o.p.ob_refcnt
+proc refCount*(o: PPyRef): int = o.p.ob_refcnt
 
-proc finalize_pyref(o: PPyRef) =
+proc finalizePyRef(o: PPyRef) =
   if o.p != nil:
     Py_DECREF(o.p)
     o.p = nil
 
+converter toPPyRef*(p: PPyObject) : PPyRef = 
+  new(result, finalizePyRef)
+  result.p = check(p)
+
 proc dup*(src: PPyRef) : PPyRef = 
-  new(result, finalize_pyref)
+  new(result, finalizePyRef)
   result.p = src.p
   Py_INCREF(result.p)
-
-converter to_PPyRef*(p: PPyObject) : PPyRef = 
-  new(result, finalize_pyref)
-  result.p = check(p)
 
 #-------------------------------------------------------------------------------
 # conversion of nimrod values to/from python values
 
-proc to_py*(x: PPyRef) : PPyRef = x
-converter to_py*(f: float) : PPyRef{.procvar.} = PyFloat_fromDouble(f)
-converter to_py*(i: int) : PPyRef {.procvar.} = 
+proc toPy*(x: PPyRef) : PPyRef = x
+converter toPy*(f: float) : PPyRef{.procvar.} = PyFloat_fromDouble(f)
+converter toPy*(i: int) : PPyRef {.procvar.} = 
   result = PyInt_FromLong(int32(i))
-converter to_py*(s: cstring) : PPyRef {.procvar.} = PyString_fromString(s)
-converter to_py*(s: string) : PPyRef {.procvar.} = to_py(cstring(s))
+converter toPy*(s: cstring) : PPyRef {.procvar.} = PyString_fromString(s)
+converter toPy*(s: string) : PPyRef {.procvar.} = toPy(cstring(s))
 
 proc to_list*(vals: openarray[PPyRef]): PPyRef =
-  result = py_list(len(vals))
+  result = pyList(len(vals))
   for i in 0..len(vals)-1:
     let p = vals[i].p
     Py_INCREF(p)
     discard check(PyList_SetItem(result.p, i, p))
 
 # doesn't work as a converter, I don't know why
-proc to_py*[T](vals: openarray[T]): PPyRef {.procvar.} = 
-  to_list(map[T,PPyRef](vals, (proc(x:T): PPyRef = to_py(x))))
+proc toPy*[T](vals: openarray[T]): PPyRef {.procvar.} = 
+  to_list(map[T,PPyRef](vals, (proc(x:T): PPyRef = toPy(x))))
 
-converter to_py*[T](vals: seq[T]): PPyRef {.procvar.} = 
-  to_list(map[T,PPyRef](vals, (proc(x:T): PPyRef = to_py(x))))
+converter toPy*[T](vals: seq[T]): PPyRef {.procvar.} = 
+  to_list(map[T,PPyRef](vals, (proc(x:T): PPyRef = toPy(x))))
 
-proc to_tuple*(vals: openarray[PPyRef]): PPyRef = 
+proc toTuple*(vals: openarray[PPyRef]): PPyRef = 
   let size = vals.len
   result = PyTuple_New(size)
   for i in 0..size-1:
@@ -104,30 +104,30 @@ proc to_tuple*(vals: openarray[PPyRef]): PPyRef =
     discard check(PyTuple_SetItem(result.p, i, p))
   
 proc `$`*(o: PPyRef) : string = 
-  let s = to_PPyRef(PyObject_Str(o.p))
+  let s = toPPyRef(PyObject_Str(o.p))
   $PyString_AsString(s.p)
 
-proc int_from_py*(o: PPyRef) : int =
+proc intFromPy*(o: PPyRef) : int =
   result = PyInt_AsLong(o.p)
   if result== -1:
     if PyErr_Occurred() != nil:
-      handle_error("failed conversion to int")
+      handleError("failed conversion to int")
 
-proc float_from_py*(o: PPyRef) : float =
+proc floatFromPy*(o: PPyRef) : float =
   result = PyFloat_AsDouble(o.p)
   if result == -1.0:
     if PyErr_Occurred() != nil:
-      handle_error("failed conversion to float")
+      handleError("failed conversion to float")
 
 #-------------------------------------------------------------------------------
 # ~ : syntactic sugar for getattr
 
 # distinguish between accesses to python objects and to nimrod objects
 # based on the object's type.
-macro resolve_dot(obj: expr, field: string): expr = 
+macro resolveDot(obj: expr, field: string): expr = 
   result = newDotExpr(obj, newIdentNode(!strVal(field)))
   #echo "re-created ", repr(result)
-macro resolve_dot(obj: PPyRef, field: string): expr = 
+macro resolveDot(obj: PPyRef, field: string): expr = 
   #echo "resolving ", strVal(field), " in ", repr(obj)
   result = newCall(bindSym"getattr", obj, newStrLitNode(strVal(field)))
   #echo "resolved"
@@ -135,7 +135,7 @@ macro resolve_dot(obj: PPyRef, field: string): expr =
 # This is a temporary kludge until '.' can be overloaded. However,
 # it doesn't seem like that's gonna happen until version 1 or even
 # later, see the IRC logs for 2014-02-09.
-proc replace_dots(a: expr): expr {.compileTime.} =
+proc replaceDots(a: expr): expr {.compileTime.} =
   #echo(repr(a))
   result = a
   let lookup = bindSym"resolve_dot"
@@ -145,24 +145,24 @@ proc replace_dots(a: expr): expr {.compileTime.} =
     expectKind(a[1], nnkIdent)
     # defer the distinction between python member lookup and nimrod member
     # lookup to the type-checking phase.
-    #echo("looking up ", repr(a[1]), " in ", repr(replace_dots(a[0])))
-    result = newCall(lookup, replace_dots(a[0]), toStrLit(a[1]))
+    #echo("looking up ", repr(a[1]), " in ", repr(replaceDots(a[0])))
+    result = newCall(lookup, replaceDots(a[0]), toStrLit(a[1]))
   of nnkEmpty, nnkNilLit, nnkCharLit..nnkInt64Lit: discard
   of nnkFloatLit..nnkFloat64Lit, nnkStrLit..nnkTripleStrLit: discard
   of nnkIdent, nnkSym, nnkNone: discard
   else:
     result = newNimNode(a.kind)
     for i in 0..a.len-1:
-      result.add(replace_dots(a[i]))
+      result.add(replaceDots(a[i]))
 
 macro `~`*(a: expr) : expr {.immediate.} = 
-  result = replace_dots(a)
+  result = replaceDots(a)
 
 #-------------------------------------------------------------------------------
 # common object properties
 
 proc getattr*(o: PPyRef, name: cstring) : PPyRef =
-  result = to_PPyRef(PyObject_GetAttrString(o.p, name))
+  result = toPPyRef(PyObject_GetAttrString(o.p, name))
 
 proc repr*(o: PPyRef): string = $(builtins()["repr"](o))
 
@@ -172,12 +172,12 @@ proc len*(o: PPyRef) : int =
 #-------------------------------------------------------------------------------
 # operator overloading
 
-proc `()`*(f: PPyRef, args: varargs[PPyRef,to_py]): PPyRef = 
-  let args_tup = to_tuple(args)
+proc `()`*(f: PPyRef, args: varargs[PPyRef,toPy]): PPyRef = 
+  let args_tup = toTuple(args)
   PyObject_CallObject(f.p, args_tup.p)
 
 proc `[]`*(v: PPyRef, key: PPyRef) : PPyRef =
-  to_PPyRef(PyObject_GetItem(v.p, key.p))
+  toPPyRef(PyObject_GetItem(v.p, key.p))
 
 proc `[]=`*(mapping, key, val: PPyRef): void =
   discard check(PyObject_SetItem(mapping.p, key.p, val.p))
@@ -194,9 +194,9 @@ proc abs*(a:PPyRef): PPyRef = PyNumber_Absolute(a.p)
 #------------------------------------------------------------------------------
 # containers
 
-proc py_dict*(): PPyRef = PyDict_New()
+proc pyDict*(): PPyRef = PyDict_New()
 
-proc py_list*(size: int): PPyRef = 
+proc pyList*(size: int): PPyRef = 
   result = PyList_New(size)
   for i in 0..size-1:
     Py_INCREF(Py_None)
@@ -211,13 +211,13 @@ proc eval*(c: PContext, src: cstring) : PPyRef =
 
 proc builtins*() : PPyRef = PyEval_GetBuiltins()
   
-proc py_import*(name : cstring) : PPyRef =
+proc pyImport*(name : cstring) : PPyRef =
   PyImport_ImportModule(name)
 
-proc init_context*() : PContext = 
+proc initContext*() : PContext = 
   new result
-  result.locals = py_dict()
-  result.globals = py_dict()
+  result.locals = pyDict()
+  result.globals = pyDict()
   result.globals["__builtins__"] = builtins()
   result.globals["__builtins__"] = builtins()
 
@@ -229,7 +229,7 @@ when GC_the_python_interpreter:
     Interpreter = object {.bycopy.} 
     PInterpreter* = ref Interpreter
 
-  proc finalize_interpreter(interpreter : PInterpreter) =
+  proc finalizeInterpreter(interpreter : PInterpreter) =
     Py_Finalize()
 
   # init_python is not useful yet. Before I let users call this,
@@ -240,7 +240,7 @@ when GC_the_python_interpreter:
   # upon the interpreter, even though the interpreter is not
   # passed to the python/C API routines.
   proc init_python() : PInterpreter =
-    new(result, finalize_interpreter)
+    new(result, finalizeInterpreter)
     Py_Initialize()
 else:
   # temporary kludge, until I adopt the lua convention

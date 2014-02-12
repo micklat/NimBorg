@@ -12,7 +12,7 @@ type PPyRef.
 
 * import python modules with a statement such as:
 
-  let py_math = py_import("math")
+  let py_math = pyImport("math")
 
 thus imported, the module is a regular python object.
 
@@ -24,8 +24,8 @@ thus imported, the module is a regular python object.
 - basic arithmetic (+, -, *, /, %)
 - conversion to string with `$`
 - len, repr
-- create python lists with py_list()
-- create python dicts with py_dict()
+- create python lists with pyList()
+- create python dicts with pyDict()
 
 * since PPyRef is a reference type, Nimrod doesn't allow the syntax p.x 
 where p is a wrapped python objects. Therefore, the macro `~` was created to
