@@ -10,7 +10,7 @@ from strutils import format
 # to make it completely clear to the compiler how I want ~a.b(c,d) to be dispatched.
 # 
 # The language-specific modules will define an appropriate isDynamic macro and a 
-# dynamicDot proc. Python wil implement dynamicDot using getattr and lua will
+# dynamicDot proc. Python will implement dynamicDot using getattr and lua will
 # implement it using `[]`. Then, it will be something along the lines of:
 #
 # replaceDots(e) will substitute:
