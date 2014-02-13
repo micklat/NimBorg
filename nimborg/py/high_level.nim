@@ -123,16 +123,15 @@ proc floatFromPy*(o: PPyRef) : float =
 #-------------------------------------------------------------------------------
 # ~a.b : syntactic sugar for getattr(a,"b")
 
-# distinguish between accesses to python objects and to nimrod objects
-# based on the object's type.
-macro resolveDot(obj: expr, field: string): expr = 
-  result = resolveNimrodDot(obj, strVal(field))
+# everything that is not explicitly declared to by dynamic is non-dynamic:
+template isDynamic(obj: expr): int = 0
+template isDynamic(x: PPyRef): int = 1
 
-macro resolveDot(obj: PPyRef, field: string): expr = 
-  result = newCall(bindSym"getattr", obj, newStrLitNode(strVal(field)))
+proc dynamicDot*(obj: PPyRef, field: string): PPyRef {.inline.} = 
+  getattr(obj, field)
 
 macro `~`*(a: expr) : expr {.immediate.} = 
-  result = replaceDots(a, bindSym"resolveDot")
+  result = replaceDots(a, bindSym"isDynamic").e
 
 #-------------------------------------------------------------------------------
 # common object properties

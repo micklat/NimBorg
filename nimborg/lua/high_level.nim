@@ -104,8 +104,7 @@ proc luaError(err_code: int, context = "lua FFI"): void =
                        err_code, context)
       raise newException(ELua, msg)
 
-proc nullaryFunc*(s: PLuaState, lua_expr: string): PLuaRef = 
-  let body = "return " & lua_expr
+proc nullaryFunc*(s: PLuaState, body: string): PLuaRef = 
   let err_code = lauxlib.loadstring(s.L, body)
   if err_code == lua.OK: 
     return popRef(s)
@@ -113,10 +112,13 @@ proc nullaryFunc*(s: PLuaState, lua_expr: string): PLuaRef =
   if err_code == lua.ERRSYNTAX: 
     raise newException(ELuaSyntax, "syntax error in: " & body)
   else: 
-    luaError(err_code, lua_expr)
+    luaError(err_code, body)
 
-proc eval*(s: PLuaState, lua_expr: string): PLuaRef {.discardable.} = 
-  call_with_lua_refs(s.nullaryFunc(lua_expr))
+proc exec*(s: PLuaState, luaStmt: string): PLuaRef {.discardable.} =
+  call_with_lua_refs(s.nullaryFunc(luaStmt))
+
+proc eval*(s: PLuaState, luaExpr: string): PLuaRef {.discardable.} = 
+  exec(s, "return " & luaExpr)
 
 #------------------------------
 
@@ -192,7 +194,6 @@ proc callWithLuaRefs(f: PLuaRef, args: varargs[PLuaRef]): PLuaRef =
 # as a parameter for toRef.
 macro mkRefsAndCall(f: PLuaRef, args: varargs[expr]): PLuaRef =
   # I avoid a "let" here because of https://github.com/Araq/Nimrod/issues/904
-  # instead, there's a "let" in `()`.
   # 
   # this macro produces:
   #   callWithLuaRefs(f, toRef(f.state, arg1), toRef(f.state, arg2), ...))
@@ -206,7 +207,7 @@ macro mkRefsAndCall(f: PLuaRef, args: varargs[expr]): PLuaRef =
 
 template workAroundBug904(f: PLuaRef, args: varargs[expr]): PLuaRef = 
   bind mkRefsAndCall
-  # I would have preferred to write:
+  # I would have preferred to generate:
   #   let f_val = f
   #   mkRefsAndCall(f_val, args)
   # but I must avoid 'let' at all costs:
@@ -221,14 +222,13 @@ template `()`*(f: PLuaRef, args: varargs[expr]): PLuaRef =
 #-------------------------------------------------------------------------------
 # ~a.b : syntactic sugar for a["b"]
 
-# distinguish between accesses to lua objects and to nimrod objects
-# based on the object's type.
-macro resolveDot(obj: expr, field: string): expr = 
-  result = resolveNimrodDot(obj, strVal(field))
+# everything that is not explicitly declared to by dynamic is non-dynamic:
+template isDynamic(obj: expr): int = 0
+template isDynamic(x: PLuaRef): int = 1
 
-macro resolveDot(obj: PLuaRef, field: string): expr = 
-  result = newCall(bindSym"lookupName", obj, newStrLitNode(strVal(field)))
+proc dynamicDot*(obj: PLuaRef, field: string): PLuaRef {.inline.} = 
+  lookupName(obj, field)
 
 macro `~`*(a: expr) : expr {.immediate.} = 
-  result = replaceDots(a, bindSym"resolveDot")
+  result = replaceDots(a, bindSym"isDynamic").e
 
