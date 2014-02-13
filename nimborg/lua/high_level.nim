@@ -3,7 +3,7 @@ from low_level/lualib import nil
 from low_level/lauxlib import NOREF, unref, reference
 import macros
 from strutils import format, `%`
-import nimborg_common
+import nimborg/common
 
 # TODO: 
 #

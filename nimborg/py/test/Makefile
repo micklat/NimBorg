@@ -3,7 +3,7 @@ tests: test_py test_py_eval test_pylab
 	./test_py_eval
 	./test_pylab
 
-COMPILE = nimrod -p=../.. c 
+COMPILE = nimrod -p=../../.. c 
 
 test_py: test_py.nim ../high_level.nim
 	$(COMPILE) $<

@@ -1,4 +1,4 @@
-import nim_lua/high_level as luaHL
+import nimborg/lua/high_level as luaHL
 from math import pi
 
 let s = luaHL.newLuaState()

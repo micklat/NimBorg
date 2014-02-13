@@ -1,4 +1,4 @@
-import nim_py/high_level
+import nimborg/py/high_level
 import math
 
 echo "the current working directory is:"

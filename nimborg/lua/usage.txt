@@ -6,7 +6,7 @@ See the test for usage examples of the features below:
 
 * first, import the high-level lua bindings into your module:
 
-  import nim_lua/high_level
+  import nimborg/lua/high_level
 
 * all nimrod-accessible lua objects are wrapped with a reference of
 type PLuaRef.
