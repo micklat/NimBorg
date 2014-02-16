@@ -52,6 +52,10 @@
 # or to generate a diff file to my or other original sources.            
 # Dr. Dietmar Budelsky, 1997-11-17                                       
 #************************************************************************
+#
+# 14/2/2014 Micky Latowicki: place initialization and finalization code
+#   in functions that are not called unconditionally
+# 14/2/2014 Micky Latowicki: add definitions of the new buffer interface
 
 {.deadCodeElim: on.}
 
@@ -60,13 +64,13 @@ import
 
 
 when defined(windows): 
-  const dllname = "python(27|26|25|24|23|22|21|20|16|15).dll"
+  # the new buffer protocol only exists since python 2.6
+  const dllname = "python(27|26).dll"
 elif defined(macosx):
-  const dllname = "libpython(2.7|2.6|2.5|2.4|2.3|2.2|2.1|2.0|1.6|1.5).dylib"
+  const dllname = "libpython(2.7|2.6).dylib"
 else: 
   const dllver = ".1"
-  const dllname = "libpython(2.7|2.6|2.5|2.4|2.3|2.2|2.1|2.0|1.6|1.5).so" & 
-                  dllver
+  const dllname = "libpython(2.7|2.6).so" & dllver
 
   
 const 
@@ -82,7 +86,7 @@ const
 
 type                          # Rich comparison opcodes introduced in version 2.1
   TRichComparisonOpcode* = enum 
-    pyLT, pyLE, pyEQ, pyNE, pyGT, pyGE
+    Py_LT, Py_LE, Py_EQ, Py_NE, Py_GT, Py_GE
 
 const
   Py_TPFLAGS_HAVE_GETCHARBUFFER* = (1 shl 0) # PySequenceMethods contains sq_contains
@@ -101,10 +105,15 @@ const
   Py_TPFLAGS_READY* = (1 shl 12) # Set while the type is being 'readied', to prevent recursive ready calls
   Py_TPFLAGS_READYING* = (1 shl 13) # Objects support garbage collection (see objimp.h)
   Py_TPFLAGS_HAVE_GC* = (1 shl 14)
+  Py_TPFLAGS_HAVE_INDEX* = (1 shl 17) # Objects support nb_index in PyNumberMethods
+  Py_TPFLAGS_HAVE_NEWBUFFER* = (1 shl 21)
+
+  Py_TPFLAGS_HAVE_STACKLESS_EXTENSION = 0
   Py_TPFLAGS_DEFAULT* = Py_TPFLAGS_HAVE_GETCHARBUFFER or
       Py_TPFLAGS_HAVE_SEQUENCE_IN or Py_TPFLAGS_HAVE_INPLACEOPS or
       Py_TPFLAGS_HAVE_RICHCOMPARE or Py_TPFLAGS_HAVE_WEAKREFS or
-      Py_TPFLAGS_HAVE_ITER or Py_TPFLAGS_HAVE_CLASS 
+      Py_TPFLAGS_HAVE_ITER or Py_TPFLAGS_HAVE_CLASS or
+      Py_TPFLAGS_HAVE_STACKLESS_EXTENSION or Py_TPFLAGS_HAVE_INDEX
 
 type 
   TPFlag* = enum 
@@ -230,6 +239,8 @@ type
   PPyTypeObject* = ptr TPyTypeObject
   PPySliceObject* = ptr TPySliceObject
   TPyCFunction* = proc (self, args: PPyObject): PPyObject{.cdecl.}
+  Py_ssize_t = cint # PEP353: Py_ssize_t is signed and has the same size as size_t
+  PPy_buffer = ptr TPy_buffer
   Tunaryfunc* = proc (ob1: PPyObject): PPyObject{.cdecl.}
   Tbinaryfunc* = proc (ob1, ob2: PPyObject): PPyObject{.cdecl.}
   Tternaryfunc* = proc (ob1, ob2, ob3: PPyObject): PPyObject{.cdecl.}
@@ -255,6 +266,10 @@ type
   Tgetwritebufferproc* = proc (ob1: PPyObject, i: int, p: Pointer): int{.cdecl.}
   Tgetsegcountproc* = proc (ob1: PPyObject, i: int): int{.cdecl.}
   Tgetcharbufferproc* = proc (ob1: PPyObject, i: int, pstr: cstring): int{.cdecl.}
+  Tgetbufferproc* = proc (a:PPyObject, buf:PPy_buffer, c:int): int {.cdecl.}
+  Treleasebufferproc* = proc(a:PPyObject, buf:PPy_buffer): void {.cdecl.}
+
+
   Tobjobjproc* = proc (ob1, ob2: PPyObject): int{.cdecl.}
   Tvisitproc* = proc (ob1: PPyObject, p: Pointer): int{.cdecl.}
   Ttraverseproc* = proc (ob1: PPyObject, prc: TVisitproc, p: Pointer): int{.
@@ -335,6 +350,8 @@ type
     bf_getwritebuffer*: Tgetwritebufferproc
     bf_getsegcount*: Tgetsegcountproc
     bf_getcharbuffer*: Tgetcharbufferproc
+    bf_getbuffer*: Tgetbufferproc 
+    bf_releasebuffer*: Treleasebufferproc
 
   PPyBufferProcs* = ptr TPyBufferProcs
   TPy_complex*{.final.} = object 
@@ -466,8 +483,8 @@ type
     tp_cache*: PPyObject
     tp_subclasses*: PPyObject
     tp_weaklist*: PPyObject   #More spares
-    tp_xxx7*: pointer
-    tp_xxx8*: pointer
+    tp_xxx7*: pointer # tp_del, for internal use only
+    tp_xxx8*: pointer # tp_version_tag, for internal use only
 
   PPyMethodChain* = ptr TPyMethodChain
   TPyMethodChain*{.final.} = object 
@@ -512,6 +529,23 @@ type
     co_name*: PPyObject       # string (name, for reference)
     co_firstlineno*: int      # first source line number
     co_lnotab*: PPyObject     # string (encoding addr<->lineno mapping)
+
+  TPy_buffer* {.pure, final.} = object 
+    buf*: pointer
+    obj*: PPyObject        # owned reference 
+    length*: Py_ssize_t       # number of bytes in this buffer (called 'len' in the .h, sorry about that)
+    itemsize*: Py_ssize_t     # This is Py_ssize_t so it can be
+                              # pointed to by strides in simple case.
+    readonly*: cint
+    ndim*: cint
+    format*: cstring
+    shape*: ptr Py_ssize_t
+    strides*: ptr Py_ssize_t
+    suboffsets*: ptr Py_ssize_t
+    smalltable*: array[0..1, Py_ssize_t] # static store for shape and 
+                                         # strides of mono-dimensional 
+                                         # buffers. 
+    internal*: pointer
   
   PPyInterpreterState* = ptr TPyInterpreterState
   PPyThreadState* = ptr TPyThreadState
@@ -600,6 +634,28 @@ type
     wr_prev*: PPyWeakReference
     wr_next*: PPyWeakReference
 
+const 
+  PyBUF_SIMPLE* = 0
+  PyBUF_WRITABLE* = 0x00000001
+  PyBUF_WRITEABLE* = PyBUF_WRITABLE
+  PyBUF_FORMAT* = 0x00000004
+  PyBUF_ND* = 0x00000008
+  PyBUF_STRIDES* = (0x00000010 or PyBUF_ND)
+  PyBUF_C_CONTIGUOUS* = (0x00000020 or PyBUF_STRIDES)
+  PyBUF_F_CONTIGUOUS* = (0x00000040 or PyBUF_STRIDES)
+  PyBUF_ANY_CONTIGUOUS* = (0x00000080 or PyBUF_STRIDES)
+  PyBUF_INDIRECT* = (0x00000100 or PyBUF_STRIDES)
+  PyBUF_CONTIG* = (PyBUF_ND or PyBUF_WRITABLE)
+  PyBUF_CONTIG_RO* = (PyBUF_ND)
+  PyBUF_STRIDED* = (PyBUF_STRIDES or PyBUF_WRITABLE)
+  PyBUF_STRIDED_RO* = (PyBUF_STRIDES)
+  PyBUF_RECORDS* = (PyBUF_STRIDES or PyBUF_WRITABLE or PyBUF_FORMAT)
+  PyBUF_RECORDS_RO* = (PyBUF_STRIDES or PyBUF_FORMAT)
+  PyBUF_FULL* = (PyBUF_INDIRECT or PyBUF_WRITABLE or PyBUF_FORMAT)
+  PyBUF_FULL_RO* = (PyBUF_INDIRECT or PyBUF_FORMAT)
+  PyBUF_READ* = 0x00000100
+  PyBUF_WRITE* = 0x00000200
+  PyBUF_SHADOW* = 0x00000400
 
 const                         
   PyDateTime_DATE_DATASIZE* = 4 # # of bytes for year, month, and day
@@ -1085,6 +1141,11 @@ proc PyObject_IsInstance*(inst, cls: PPyObject): int{.cdecl, importc, dynlib: dl
 proc PyObject_IsSubclass*(derived, cls: PPyObject): int{.cdecl, importc, dynlib: dllname.}
 proc PyObject_GenericGetAttr*(obj, name: PPyObject): PPyObject{.cdecl, importc, dynlib: dllname.}
 proc PyObject_GenericSetAttr*(obj, name, value: PPyObject): int{.cdecl, importc, dynlib: dllname.} #-
+proc PyObject_RichCompare*(o1, o2: PPyObject, opid: TRichComparisonOpcode): PPyObject{.cdecl, importc, dynlib: dllname.} #-
+
+proc PyObject_GetBuffer*(obj: PPyObject, view: PPy_buffer, flags: cint): cint{.cdecl, importc, dynlib: dllname.} 
+proc PyBuffer_Release*(view: PPy_buffer) {.cdecl, importc, dynlib: dllname.} #-
+
 proc PyObject_GC_Malloc*(size: int): PPyObject{.cdecl, importc, dynlib: dllname.} #-
 proc PyObject_GC_New*(t: PPyTypeObject): PPyObject{.cdecl, importc, dynlib: dllname.} #-
 proc PyObject_GC_NewVar*(t: PPyTypeObject, size: int): PPyObject{.cdecl, importc, dynlib: dllname.} #-
@@ -1444,7 +1505,12 @@ proc PyType_HasFeature(AType: PPyTypeObject, AFlag: int): bool =
   #(((t)->tp_flags & (f)) != 0)
   Result = (AType.tp_flags and AFlag) != 0
 
-proc init(lib: TLibHandle) = 
+proc PyObject_CheckBuffer*(obj: PPyObject): bool {.inline.} =
+  ((obj.ob_type.tp_as_buffer != nil) and
+    PyType_HasFeature(obj.ob_type, Py_TPFLAGS_HAVE_NEWBUFFER) and
+    (obj.ob_type.tp_as_buffer.bf_getbuffer != nil))
+
+proc initLibVars(lib: TLibHandle) = 
   Py_DebugFlag = cast[PInt](symAddr(lib, "Py_DebugFlag"))
   Py_VerboseFlag = cast[PInt](symAddr(lib, "Py_VerboseFlag"))
   Py_InteractiveFlag = cast[PInt](symAddr(lib, "Py_InteractiveFlag"))
@@ -1578,10 +1644,19 @@ else:
       "libpython1.6.so" & dllver, 
       "libpython1.5.so" & dllver]
   
-for libName in items(libNames): 
-  lib = loadLib(libName, global_symbols=true)
-  if lib != nil: break
+proc initPython*() =
+  for libName in items(libNames): 
+    lib = loadLib(libName, global_symbols=true)
+    if lib != nil: break
 
-if lib == nil: quit("could not load python library")
-init(lib)
+  if lib == nil: 
+    raise newException(EInvalidLibrary, 
+                       "no suitable version of the python dll was found")
+  initLibVars(lib)
+  Py_Initialize()
 
+proc finalizePython*() =
+  if lib != nil:
+    Py_Finalize()
+    unloadLib(lib)
+    finally: lib = nil

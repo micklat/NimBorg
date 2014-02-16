@@ -9,47 +9,53 @@
 # * don't print exceptions, retrieve the exception information into nimrod
 #
 
-import nimborg/py/low_level except expr
+import nimborg/py/low_level except expr, stmt
 import nimborg/common
 import macros
+from strutils import `%`
 
 type
   # A non-borrowed (counted) reference. Avoid copying these around! Nimrod 
   # doesn't have the equivalent of an assignment constructor (yet?), so any
-  # copy of a PyRef must be counted (use dup for that).
+  # copy of a PyRef must be counted (use dup for that). For this reason,
+  # we add a level of indirection, and represent python objects as PPyRef,
+  # which can be copied freely.
   PyRef = object {.inheritable, byref.} 
     p: PPyObject
   PPyRef* = ref PyRef
 
   EPython = object of E_Base
+  EPyNotSupported = object of EPython # operation requested not supported 
+                                      # by the recepient python object
+  EPyTypeError = object of EPython
 
   Context = object 
     globals*, locals*: PPyRef 
   PContext = ref Context
 
 # forward declarations
-proc getattr*(o: PPyRef, name: cstring) : PPyRef
-proc eval*(c: PContext, src: cstring) : PPyRef
-proc `[]`*(v: PPyRef, key: PPyRef) : PPyRef
+proc getattr*(o: PPyRef, name: cstring): PPyRef
+proc eval*(c: PContext, src: cstring): PPyRef
+proc `[]`*(v: PPyRef, key: PPyRef): PPyRef
 proc `[]=`*(mapping, key, val: PPyRef): void
-proc builtins*() : PPyRef
+proc builtins*(): PPyRef
 proc `()`*(f: PPyRef, args: varargs[PPyRef,to_py]): PPyRef {.discardable.}
 proc pyDict*(): PPyRef
 proc pyList*(size: int): PPyRef
-proc `$`*(o: PPyRef) : string
+proc `$`*(o: PPyRef): string
 
 #-------------------------------------------------------------------------------
 # error handling
 
-proc handleError(s : string) =
+proc handleError(s: string) =
   PyErr_Print()
   raise newException(EPython, s)
 
-proc check(p: PPyObject) : PPyObject =
+proc check(p: PPyObject): PPyObject =
   if p == nil: handleError("check(nil)")
   result = p
 
-proc check(x: int) : int =
+proc check(x: int): int =
   if x == -1: handleError("check(-1)")
   result = x
 
@@ -63,11 +69,11 @@ proc finalizePyRef(o: PPyRef) =
     Py_DECREF(o.p)
     o.p = nil
 
-converter toPPyRef*(p: PPyObject) : PPyRef = 
+proc wrapNew*(p: PPyObject): PPyRef = 
   new(result, finalizePyRef)
   result.p = check(p)
 
-proc dup*(src: PPyRef) : PPyRef = 
+proc dup*(src: PPyRef): PPyRef = 
   new(result, finalizePyRef)
   result.p = src.p
   Py_INCREF(result.p)
@@ -75,14 +81,16 @@ proc dup*(src: PPyRef) : PPyRef =
 #-------------------------------------------------------------------------------
 # conversion of nimrod values to/from python values
 
-proc toPy*(x: PPyRef) : PPyRef = x
-converter toPy*(f: float) : PPyRef{.procvar.} = PyFloat_fromDouble(f)
-converter toPy*(i: int) : PPyRef {.procvar.} = 
-  result = PyInt_FromLong(int32(i))
-converter toPy*(s: cstring) : PPyRef {.procvar.} = PyString_fromString(s)
-converter toPy*(s: string) : PPyRef {.procvar.} = toPy(cstring(s))
+converter rawPyObject(x: PPyRef): PPyObject = x.p
 
-proc to_list*(vals: openarray[PPyRef]): PPyRef =
+proc toPy*(x: PPyRef): PPyRef = x
+converter toPy*(f: float): PPyRef{.procvar.} = wrapNew(PyFloat_fromDouble(f))
+converter toPy*(i: int): PPyRef {.procvar.} = 
+  result = wrapNew(PyInt_FromLong(int32(i)))
+converter toPy*(s: cstring): PPyRef {.procvar.} = wrapNew(PyString_fromString(s))
+converter toPy*(s: string): PPyRef {.procvar.} = wrapNew(toPy(cstring(s)))
+
+proc toList*(vals: openarray[PPyRef]): PPyRef =
   result = pyList(len(vals))
   for i in 0..len(vals)-1:
     let p = vals[i].p
@@ -91,37 +99,42 @@ proc to_list*(vals: openarray[PPyRef]): PPyRef =
 
 # doesn't work as a converter, I don't know why
 proc toPy*[T](vals: openarray[T]): PPyRef {.procvar.} = 
-  to_list(map[T,PPyRef](vals, (proc(x:T): PPyRef = toPy(x))))
+  toList(map[T,PPyRef](vals, (proc(x:T): PPyRef = toPy(x))))
 
 converter toPy*[T](vals: seq[T]): PPyRef {.procvar.} = 
-  to_list(map[T,PPyRef](vals, (proc(x:T): PPyRef = toPy(x))))
+  toList(map[T,PPyRef](vals, (proc(x:T): PPyRef = toPy(x))))
 
 proc toTuple*(vals: openarray[PPyRef]): PPyRef = 
   let size = vals.len
-  result = PyTuple_New(size)
+  result = wrapNew(PyTuple_New(size))
   for i in 0..size-1:
     let p = vals[i].p
     Py_INCREF(p) # PyTuple_SetItem steals refs
     discard check(PyTuple_SetItem(result.p, i, p))
+
+proc mkTuple*(args: varargs[PPyRef, toPy]): PPyRef = 
+  result = toTuple(args)
   
-proc `$`*(o: PPyRef) : string = 
-  let s = toPPyRef(PyObject_Str(o.p))
+proc `$`*(o: PPyRef): string = 
+  let s = wrapNew(PyObject_Str(o.p))
   $PyString_AsString(s.p)
 
-proc intFromPy*(o: PPyRef) : int =
+proc toInt*(o: PPyRef): int =
   result = PyInt_AsLong(o.p)
   if result== -1:
     if PyErr_Occurred() != nil:
       handleError("failed conversion to int")
 
-proc floatFromPy*(o: PPyRef) : float =
+proc toFloat*(o: PPyRef): float =
   result = PyFloat_AsDouble(o.p)
   if result == -1.0:
     if PyErr_Occurred() != nil:
       handleError("failed conversion to float")
 
+proc toBool*(o: PPyRef): bool = (PyObject_IsTrue(o)==1)
+
 #-------------------------------------------------------------------------------
-# ~a.b : syntactic sugar for getattr(a,"b")
+# ~a.b: syntactic sugar for getattr(a,"b")
 
 # distinguish between accesses to python objects and to nimrod objects
 # based on the object's type.
@@ -131,18 +144,18 @@ macro resolveDot(obj: expr, field: string): expr =
 macro resolveDot(obj: PPyRef, field: string): expr = 
   result = newCall(bindSym"getattr", obj, newStrLitNode(strVal(field)))
 
-macro `~`*(a: expr) : expr {.immediate.} = 
+macro `~`*(a: expr): expr {.immediate.} = 
   result = replaceDots(a, bindSym"resolveDot")
 
 #-------------------------------------------------------------------------------
 # common object properties
 
-proc getattr*(o: PPyRef, name: cstring) : PPyRef =
-  result = toPPyRef(PyObject_GetAttrString(o.p, name))
+proc getattr*(o: PPyRef, name: cstring): PPyRef =
+  result = wrapNew(PyObject_GetAttrString(o.p, name))
 
 proc repr*(o: PPyRef): string = $(builtins()["repr"](o))
 
-proc len*(o: PPyRef) : int =
+proc len*(o: PPyRef): int =
   check(PyObject_Length(o.p))
 
 #-------------------------------------------------------------------------------
@@ -150,47 +163,112 @@ proc len*(o: PPyRef) : int =
 
 proc `()`*(f: PPyRef, args: varargs[PPyRef,toPy]): PPyRef = 
   let args_tup = toTuple(args)
-  PyObject_CallObject(f.p, args_tup.p)
+  wrapNew(PyObject_CallObject(f.p, args_tup.p))
 
-proc `[]`*(v: PPyRef, key: PPyRef) : PPyRef =
-  toPPyRef(PyObject_GetItem(v.p, key.p))
+proc `[]`*(v: PPyRef, key: PPyRef): PPyRef =
+  wrapNew(PyObject_GetItem(v.p, key.p))
 
 proc `[]=`*(mapping, key, val: PPyRef): void =
   discard check(PyObject_SetItem(mapping.p, key.p, val.p))
 
-proc `*`*(a,b:PPyRef): PPyRef = PyNumber_Multiply(a.p,b.p)
-proc `+`*(a,b:PPyRef): PPyRef = PyNumber_Add(a.p,b.p)
-proc `-`*(a,b:PPyRef): PPyRef = PyNumber_Subtract(a.p,b.p)
-proc `/`*(a,b:PPyRef): PPyRef = PyNumber_TrueDivide(a.p,b.p)
-proc `%`*(a,b:PPyRef): PPyRef = PyNumber_Remainder(a.p,b.p)
-proc `-`*(a:PPyRef): PPyRef = PyNumber_Negative(a.p)
-proc `+`*(a:PPyRef): PPyRef = PyNumber_Positive(a.p)
-proc abs*(a:PPyRef): PPyRef = PyNumber_Absolute(a.p)
+proc `*`*(a,b:PPyRef): PPyRef = wrapNew(PyNumber_Multiply(a.p,b.p))
+proc `+`*(a,b:PPyRef): PPyRef = wrapNew(PyNumber_Add(a.p,b.p))
+proc `-`*(a,b:PPyRef): PPyRef = wrapNew(PyNumber_Subtract(a.p,b.p))
+proc `/`*(a,b:PPyRef): PPyRef = wrapNew(PyNumber_TrueDivide(a.p,b.p))
+proc `%`*(a,b:PPyRef): PPyRef = wrapNew(PyNumber_Remainder(a.p,b.p))
+proc `-`*(a:PPyRef): PPyRef = wrapNew(PyNumber_Negative(a.p))
+proc `+`*(a:PPyRef): PPyRef = wrapNew(PyNumber_Positive(a.p))
+proc abs*(a:PPyRef): PPyRef = wrapNew(PyNumber_Absolute(a.p))
+proc `==`*(a:PPyRef,b:PPyRef): PPyRef = wrapNew(PyObject_RichCompare(a.p, b.p, Py_EQ))
 
 #------------------------------------------------------------------------------
 # containers
 
-proc pyDict*(): PPyRef = PyDict_New()
+proc pyDict*(): PPyRef = wrapNew(PyDict_New())
 
 proc pyList*(size: int): PPyRef = 
-  result = PyList_New(size)
+  result = wrapNew(PyList_New(size))
   for i in 0..size-1:
     Py_INCREF(Py_None)
     let err = PyList_SetItem(result.p, i, Py_None)
     assert(err==0)
 
+proc finalizeRawPyBuffer(b: ref TPy_buffer) =
+  if b.obj!=nil: PyBuffer_Release(addr(b[]))
+
+proc isPyBufferable*(obj: PPyRef): bool{.inline.} = 
+  PyObject_CheckBuffer(obj)
+
+# this is still very low-level. It will take some work to provide a friendly and general
+# interface around python's buffers.
+proc rawPyBuffer*(obj: PPyRef, flags: cint): ref TPy_buffer =
+  new(result, finalizeRawPyBuffer)
+  let err = PyObject_GetBuffer(obj, addr(result[]), flags)
+  if err == -1:
+    result.obj = nil # flag to skip PyBuffer_Release
+    result = nil
+
+type
+  TypedPyBuffer*[T] = object {.byref.}
+    pyBuf: TPy_buffer
+    nElements*: int
+  PTypedPyBuffer*[T] = ref TypedPyBuffer[T]
+
+proc len*[T](arr: TypedPyBuffer[T]): int {.inline.} = arr.nElements
+
+proc `[]`*[T](arr: var TypedPyBuffer[T], i: int): var T =
+  let d = i*sizeof(T)
+  if d<arr.pyBuf.length: 
+    let p = cast[ptr T](cast[int](arr.pyBuf.buf) + d)
+    result = p[]
+  else:
+    raise newException(EInvalidIndex, 
+                       "$* * $* >= $*" % [$i, $sizeof(T), $arr.pyBuf.length])
+
+proc `[]`*[T](arr: PTypedPyBuffer[T], i: int): var T {.inline.} = arr[][i]
+
+proc `[]=`*[T](arr: var TypedPyBuffer[T], i: int, v: T) {.inline.} =
+  let p : ptr T = addr(arr[i])
+  p[] = v
+
+proc `[]=`*[T](arr: var PTypedPyBuffer[T], i: int, v: T) {.inline.} =
+  let p : ptr T = addr(arr[i])
+  p[] = v
+
+proc finalizeTypedPyBuffer[T](tb: ref TypedPyBuffer[T]) =
+  if tb.pyBuf.obj!=nil: PyBuffer_Release(addr(tb.pyBuf))
+
+let default_buffer_flags: cint = PyBUF_WRITABLE or PyBUF_FORMAT
+
+template defPyBufferConverter(convName: expr, T: typeDesc, fmt: string): stmt {.immediate.} =
+  proc convName*(obj: PPyRef, flags = default_buffer_flags): PTypedPyBuffer[T] =
+    new(result, finalizeTypedPyBuffer)
+    result.pyBuf.obj = nil # flag to skip PyBuffer_Release, unless GetBuffer succeeds
+    let err = PyObject_GetBuffer(obj, addr(result.pyBuf), flags)
+    if err == -1:
+      raise newException(EPyNotSupported, 
+        "buffer interface not supported with flags " & $flags)
+    if ((flags and PyBUF_FORMAT)!=0) and (fmt != $result.pyBuf.format):
+      let msg = "expected buffer format $1 but got $2" % [fmt, $result.pyBuf.format]
+      raise newException(EPyTypeError, msg)
+    result.nElements = result.pyBuf.length div result.pyBuf.itemsize
+
+defPyBufferConverter(float64Buffer, float64, "d")
+defPyBufferConverter(float32Buffer, float32, "f")
+defPyBufferConverter(uint8Buffer, uint8, "B")
+
 #-------------------------------------------------------------------------------
 # importation and evaluation
 
-proc eval*(c: PContext, src: cstring) : PPyRef =
-  PyRun_String(src, eval_input, c.globals.p, c.locals.p)
+proc eval*(c: PContext, src: cstring): PPyRef =
+  wrapNew(PyRun_String(src, eval_input, c.globals.p, c.locals.p))
 
-proc builtins*() : PPyRef = PyEval_GetBuiltins()
+proc builtins*(): PPyRef = wrapNew(PyEval_GetBuiltins())
   
-proc pyImport*(name : cstring) : PPyRef =
-  PyImport_ImportModule(name)
+proc pyImport*(name: cstring): PPyRef =
+  wrapNew(PyImport_ImportModule(name))
 
-proc initContext*() : PContext = 
+proc initContext*(): PContext = 
   new result
   result.locals = pyDict()
   result.globals = pyDict()
@@ -205,8 +283,8 @@ when GC_the_python_interpreter:
     Interpreter = object {.bycopy.} 
     PInterpreter* = ref Interpreter
 
-  proc finalizeInterpreter(interpreter : PInterpreter) =
-    Py_Finalize()
+  proc finalizeInterpreter(interpreter: PInterpreter) =
+    finalizePython()
 
   # init_python is not useful yet. Before I let users call this,
   # I must add and maintain a reference to the interpreter
@@ -215,9 +293,9 @@ when GC_the_python_interpreter:
   # the interpreter is finalized, so they semantically depend
   # upon the interpreter, even though the interpreter is not
   # passed to the python/C API routines.
-  proc init_python() : PInterpreter =
+  proc initPy(): PInterpreter =
     new(result, finalizeInterpreter)
-    Py_Initialize()
+    initPython()
 else:
   # temporary kludge, until I adopt the lua convention
-  Py_Initialize()
+  initPython()
