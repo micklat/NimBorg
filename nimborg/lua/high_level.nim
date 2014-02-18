@@ -3,13 +3,13 @@ from low_level/lualib import nil
 from low_level/lauxlib import NOREF, unref, reference
 import macros
 from strutils import format, `%`
-import nimborg/common
 
 # TODO: 
 #
-# * override dot
+# * call nimrod functions from lua
 # * more error handling
-# * each proc should check that its args belong to the same lua state
+# * each proc should check that its args belong to the same lua state,
+#   subject perhaps to a compilation flag
 
 type
   # wrap a LuaState in an object, to facilitate future use of destructors:
@@ -31,7 +31,8 @@ type
   #ELuaGCMM* = object of ELua # only defined in lua 5.2, the bindings are for 5.1
 
 # forward declarations:
-proc call_with_lua_refs*(f: PLuaRef, args: varargs[PLuaRef]): PLuaRef
+proc toLua*[T](state: PLuaState, x:T) : PLuaRef
+proc callWithLuaRefs*(f: PLuaRef, args: varargs[PLuaRef]): PLuaRef
 
 #------------------------------------------------------------
 # lifetime management
@@ -68,7 +69,9 @@ proc len*(x: PLuaRef): cint = lua.objlen(x.state.L, x.r)
 
 {.pop.}
 
-proc toRef*[T](state: PLuaState, x:T) : PLuaRef = 
+proc toLua*(state: PLuaState, x:PLuaRef): PLuaRef = x
+
+proc toLua*[T](state: PLuaState, x:T) : PLuaRef = 
   state.luaPush(x)
   result = popRef(state)
 
@@ -104,8 +107,7 @@ proc luaError(err_code: int, context = "lua FFI"): void =
                        err_code, context)
       raise newException(ELua, msg)
 
-proc nullaryFunc*(s: PLuaState, lua_expr: string): PLuaRef = 
-  let body = "return " & lua_expr
+proc nullaryFunc*(s: PLuaState, body: string): PLuaRef = 
   let err_code = lauxlib.loadstring(s.L, body)
   if err_code == lua.OK: 
     return popRef(s)
@@ -113,10 +115,13 @@ proc nullaryFunc*(s: PLuaState, lua_expr: string): PLuaRef =
   if err_code == lua.ERRSYNTAX: 
     raise newException(ELuaSyntax, "syntax error in: " & body)
   else: 
-    luaError(err_code, lua_expr)
+    luaError(err_code, body)
 
-proc eval*(s: PLuaState, lua_expr: string): PLuaRef {.discardable.} = 
-  call_with_lua_refs(s.nullaryFunc(lua_expr))
+proc exec*(s: PLuaState, luaStmt: string): PLuaRef {.discardable.} =
+  callWithLuaRefs(s.nullaryFunc(luaStmt))
+
+proc eval*(s: PLuaState, luaExpr: string): PLuaRef {.discardable.} = 
+  exec(s, "return " & luaExpr)
 
 #------------------------------
 
@@ -158,8 +163,6 @@ proc lookupKey[K](table: PLuaRef, key: K): PLuaRef =
   result = popRef(s)
   lua.pop(table.state.L, 1)
 
-proc lookupName(table: PLuaRef, key: cstring): PLuaRef = lookupKey[cstring](table, key)
-
 proc `[]`*[K](table: PLuaRef, key:K): PLuaRef = lookupKey[K](table, key)
 
 proc `$`*(x: PLuaRef): string {.inline.} = toString(x)
@@ -172,7 +175,7 @@ proc peek*(s: PLuaState): string =
     return format("$1{$2}", $lua.tostring(s.L, -1), t)
   return "non-stringable{$1}" % $t
   
-proc callWithLuaRefs(f: PLuaRef, args: varargs[PLuaRef]): PLuaRef =
+proc callWithLuaRefs(f: PLuaRef, args: varargs[PLuaRef,toLua]): PLuaRef =
   let s = f.state
   luaPush(f)
   for i in 0..args.len-1:
@@ -187,20 +190,20 @@ proc callWithLuaRefs(f: PLuaRef, args: varargs[PLuaRef]): PLuaRef =
     luaError(err_code, toString(err_text))
   assert(result!=nil)
 
-# I need a macro to apply toRef to every argument of a lua function
+# I need a macro to apply toLua to every argument of a lua function
 # converters can't work here because I need the state from the lua function 
-# as a parameter for toRef.
+# as a parameter for toLua.
 macro mkRefsAndCall(f: PLuaRef, args: varargs[expr]): PLuaRef =
   # I avoid a "let" here because of https://github.com/Araq/Nimrod/issues/904
   # instead, there's a "let" in `()`.
   # 
   # this macro produces:
-  #   callWithLuaRefs(f, toRef(f.state, arg1), toRef(f.state, arg2), ...))
+  #   callWithLuaRefs(f, toLua(f.state, arg1), toLua(f.state, arg2), ...))
   #
   result = newCall(bindSym"callWithLuaRefs", f)
   for i in 0..len(args)-1:
     let state = newDotExpr(f, newIdentNode("state"))
-    result.add(newCall(bindSym"to_ref", state, args[i]))
+    result.add(newCall(bindSym"toLua", state, args[i]))
   #echo "mkRefsAndCall produced: ", toStrLit(result)
   #echo treeRepr(result)
 
@@ -219,16 +222,21 @@ template `()`*(f: PLuaRef, args: varargs[expr]): PLuaRef =
   workAroundBug904(f, args)
 
 #-------------------------------------------------------------------------------
-# ~a.b : syntactic sugar for a["b"]
+# the new mechanism for overloading the dot
 
-# distinguish between accesses to lua objects and to nimrod objects
-# based on the object's type.
-macro resolveDot(obj: expr, field: string): expr = 
-  result = resolveNimrodDot(obj, strVal(field))
+proc `.`*(obj: PLuaRef, field: string): PLuaRef {.inline.} = 
+  lookupKey[string](obj, field)
+  
+proc `.=`*[T](obj: PLuaRef, field: string, value: T) {.inline.} = 
+  obj[field] = toLua(value)
 
-macro resolveDot(obj: PLuaRef, field: string): expr = 
-  result = newCall(bindSym"lookupName", obj, newStrLitNode(strVal(field)))
-
-macro `~`*(a: expr) : expr {.immediate.} = 
-  result = replaceDots(a, bindSym"resolveDot")
-
+macro `.()`*(obj: PLuaRef, field: string, args: varargs[expr]): expr =
+  #echo "$1.$2($3 args)" % [$toStrLit(obj), $field, $(cs.len-2)]
+  let cs = callsite()
+  let f = newCall(bindSym"lookupKey", obj, field)
+  result = newCall(f)
+  assert($cs[2] == $field)
+  for i in 3..cs.len-1: # varargs[expr] are unreliable
+    let state = newDotExpr(obj, newIdentNode("state"))
+    result.add(newCall(bindSym"toLua", state, cs[i]))
+  #echo toStrLit(result)

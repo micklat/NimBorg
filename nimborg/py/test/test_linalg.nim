@@ -11,12 +11,12 @@ let np = pyImport("numpy")
 let random = pyImport("numpy.random")
 let linalg = pyImport("scipy.linalg")
 # plenty of equations ensure a good condition number 
-let A = ~random.randn(30,4)  
-let pyTruth = ~np.array(truth).reshape(mkTuple(truth.len, 1))
-let b = ~np.dot(A, pyTruth)
+let A = random.randn(30,4)  
+let pyTruth = np.array(truth).reshape(mkTuple(truth.len, 1))
+let b = np.dot(A, pyTruth)
 
 # solve for x: Ax = b 
-let estimate = ~linalg.lstsq(A, b)[0]
+let estimate = linalg.lstsq(A, b)[0]
 let epsilon = 0.0001
 for i in 0..len(truth)-1: 
   assert(abs(estimate[i]-truth[i])<epsilon)

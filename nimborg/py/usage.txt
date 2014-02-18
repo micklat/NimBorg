@@ -19,7 +19,7 @@ thus imported, the module is a regular python object.
 * evaluate python expressions with eval(), see python/test/test_py_eval.nim
 
 * the operations supported on python objects are:
-- member access with the ~ macro (see below)
+- member access in the form a.b
 - subscripted access and assignment, e.g.: person["age"] = person["age"]+1
 - basic arithmetic (+, -, *, /, %)
 - conversion to string with `$`
@@ -27,10 +27,9 @@ thus imported, the module is a regular python object.
 - create python lists with pyList()
 - create python dicts with pyDict()
 
-* since PPyRef is a reference type, Nimrod doesn't allow the syntax p.x 
-where p is a wrapped python objects. Therefore, the macro `~` was created to
-permit a similar syntax. For example, if the object p has members x and y, you
-can write: echo ~p.x/p.y to print the ratio p.x/p.y.
+* fast read/write access to the contents of numpy array, via the functions 
+float32Buffer, float64Buffer, and uint8Buffer (other such functions should
+be easy to add).
 
 -------------------
 Low-level bindings

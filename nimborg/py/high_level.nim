@@ -2,7 +2,7 @@
 
 # short-term TODO:
 #
-# * support more of the API
+# * export nimrod values (especially functions) to python (with new python type objects).   
 #
 # mid-range TODO:
 # 
@@ -10,7 +10,6 @@
 #
 
 import nimborg/py/low_level except expr, stmt
-import nimborg/common
 import macros
 from strutils import `%`
 
@@ -34,7 +33,8 @@ type
   PContext = ref Context
 
 # forward declarations
-proc getattr*(o: PPyRef, name: cstring): PPyRef
+proc getattr*(o: PPyRef, field: cstring): PPyRef
+proc setattr*(o: PPyRef, field: cstring, val: PPyRef): void
 proc eval*(c: PContext, src: cstring): PPyRef
 proc `[]`*(v: PPyRef, key: PPyRef): PPyRef
 proc `[]=`*(mapping, key, val: PPyRef): void
@@ -55,7 +55,7 @@ proc check(p: PPyObject): PPyObject =
   if p == nil: handleError("check(nil)")
   result = p
 
-proc check(x: int): int =
+proc check(x: int): int {.discardable.} =
   if x == -1: handleError("check(-1)")
   result = x
 
@@ -134,32 +134,34 @@ proc toFloat*(o: PPyRef): float =
 proc toBool*(o: PPyRef): bool = (PyObject_IsTrue(o)==1)
 
 #-------------------------------------------------------------------------------
-# ~a.b: syntactic sugar for getattr(a,"b")
-
-# distinguish between accesses to python objects and to nimrod objects
-# based on the object's type.
-macro resolveDot(obj: expr, field: string): expr = 
-  result = resolveNimrodDot(obj, strVal(field))
-
-macro resolveDot(obj: PPyRef, field: string): expr = 
-  result = newCall(bindSym"getattr", obj, newStrLitNode(strVal(field)))
-
-macro `~`*(a: expr): expr {.immediate.} = 
-  result = replaceDots(a, bindSym"resolveDot")
-
-#-------------------------------------------------------------------------------
 # common object properties
 
-proc getattr*(o: PPyRef, name: cstring): PPyRef =
-  result = wrapNew(PyObject_GetAttrString(o.p, name))
+proc getattr*(o: PPyRef, field: cstring): PPyRef =
+  wrapNew(PyObject_GetAttrString(o.p, field))
+
+proc setattr*(o: PPyRef, field: cstring, val: PPyRef): void =
+  check(PyObject_SetAttrString(o.p, field, val.p))
 
 proc repr*(o: PPyRef): string = $(builtins()["repr"](o))
 
-proc len*(o: PPyRef): int =
-  check(PyObject_Length(o.p))
+proc len*(o: PPyRef): int = check(PyObject_Length(o.p))
 
 #-------------------------------------------------------------------------------
 # operator overloading
+
+proc `.`*(obj: PPyRef, field: string): PPyRef {.inline.} = 
+  getattr(obj, field)
+  
+proc `.=`*[T](obj: PPyRef, field: string, value: T) {.inline.} = 
+  setattr(obj, field, toPy(value))  
+
+macro `.()`*(obj: PPyRef, field: string, args: varargs[PPyRef, toPy]): expr =
+  #echo "$1.$2($3 args)" % [$toStrLit(obj), $field, $(cs.len-2)]
+  let f = newCall(bindSym"getattr", obj, field)
+  result = newCall(f)
+  for i in 0..args.len-1:
+    result.add(newCall(bindSym"toPy", args[i]))
+  #echo toStrLit(result)
 
 proc `()`*(f: PPyRef, args: varargs[PPyRef,toPy]): PPyRef = 
   let args_tup = toTuple(args)
@@ -209,14 +211,14 @@ proc rawPyBuffer*(obj: PPyRef, flags: cint): ref TPy_buffer =
     result = nil
 
 type
-  TypedPyBuffer*[T] = object {.byref.}
+  TypedPyBuffer1D*[T] = object {.byref.}
     pyBuf: TPy_buffer
     nElements*: int
-  PTypedPyBuffer*[T] = ref TypedPyBuffer[T]
+  PTypedPyBuffer1D*[T] = ref TypedPyBuffer1D[T]
 
-proc len*[T](arr: TypedPyBuffer[T]): int {.inline.} = arr.nElements
+proc len*[T](arr: TypedPyBuffer1D[T]): int {.inline.} = arr.nElements
 
-proc `[]`*[T](arr: var TypedPyBuffer[T], i: int): var T =
+proc `[]`*[T](arr: TypedPyBuffer1D[T], i: int): var T =
   let d = i*sizeof(T)
   if d<arr.pyBuf.length: 
     let p = cast[ptr T](cast[int](arr.pyBuf.buf) + d)
@@ -225,24 +227,24 @@ proc `[]`*[T](arr: var TypedPyBuffer[T], i: int): var T =
     raise newException(EInvalidIndex, 
                        "$* * $* >= $*" % [$i, $sizeof(T), $arr.pyBuf.length])
 
-proc `[]`*[T](arr: PTypedPyBuffer[T], i: int): var T {.inline.} = arr[][i]
+proc `[]`*[T](arr: PTypedPyBuffer1D[T], i: int): var T {.inline.} = arr[][i]
 
-proc `[]=`*[T](arr: var TypedPyBuffer[T], i: int, v: T) {.inline.} =
+proc `[]=`*[T](arr: var TypedPyBuffer1D[T], i: int, v: T) {.inline.} =
   let p : ptr T = addr(arr[i])
   p[] = v
 
-proc `[]=`*[T](arr: var PTypedPyBuffer[T], i: int, v: T) {.inline.} =
+proc `[]=`*[T](arr: var PTypedPyBuffer1D[T], i: int, v: T) {.inline.} =
   let p : ptr T = addr(arr[i])
   p[] = v
 
-proc finalizeTypedPyBuffer[T](tb: ref TypedPyBuffer[T]) =
+proc finalizeTypedPyBuffer1D[T](tb: ref TypedPyBuffer1D[T]) =
   if tb.pyBuf.obj!=nil: PyBuffer_Release(addr(tb.pyBuf))
 
 let default_buffer_flags: cint = PyBUF_WRITABLE or PyBUF_FORMAT
 
 template defPyBufferConverter(convName: expr, T: typeDesc, fmt: string): stmt {.immediate.} =
-  proc convName*(obj: PPyRef, flags = default_buffer_flags): PTypedPyBuffer[T] =
-    new(result, finalizeTypedPyBuffer)
+  proc convName*(obj: PPyRef, flags = default_buffer_flags): PTypedPyBuffer1D[T] =
+    new(result, finalizeTypedPyBuffer1D)
     result.pyBuf.obj = nil # flag to skip PyBuffer_Release, unless GetBuffer succeeds
     let err = PyObject_GetBuffer(obj, addr(result.pyBuf), flags)
     if err == -1:

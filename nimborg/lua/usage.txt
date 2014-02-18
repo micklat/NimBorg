@@ -23,7 +23,7 @@ that wraps the number 6.
 - function invocation such as f(x, y, z), with implicit conversion of arguments
 to lua values.
 - conversion to int, float or string
-- member access, in the form ~a.b (equivalent to a["b"])
+- member access, in the form a.b (equivalent to a["b"])
 
 Low-level bindings
 -------------------

@@ -1,15 +1,15 @@
 most urgently needed:
 * internals docs
-* "override the dot" for lua (that is, implement ~ for PLuaRef)
+* pass nimrod functions to the foreign runtime? (might lead to memory leaks due to uncollectable cycles)
 
 lower priority
 * change the python API to work more like the lua API. The PyRefs and the PyContexts 
 should hold a reference to the Interpreter so that it isn't collected before they are.
-* pass nimrod functions to the foreign runtime? (might be a mess for GC)
-* efficient access to numpy arrays (suggested by renesac)
+* switch to nake (?)
 * read through the Julia discussion here and pick some ideas
 https://groups.google.com/forum/#!msg/julia-dev/YftOOEfcwrk/7q3cm2y3Xs4J
 
 blue sky
-* R (follow rpy2), java, ...
-
+* perl, java, R (follow rpy2), ...
+* parrot supports pluggable GC, so it might be feasible to run a parrot instance inside 
+a nimrod process with references pointing in both directions, and still no memory leaks.

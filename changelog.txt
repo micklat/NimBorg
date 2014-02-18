@@ -1,0 +1,4 @@
+2014-02-18
+* eliminate the ~ macro, using Zahary's `.` overloads instead
+* add exec(stmt) to lua
+
