@@ -20,6 +20,7 @@ let lua_cos = luaMath["cos"]
 let lua_sin = s.eval("math.sin")
 assert(abs(math.cos(pi/3)-toFloat(lua_cos(pi/3))) < 0.000001)
 assert(abs(math.sin(pi/6)-toFloat(lua_sin(pi/6))) < 0.000001)
+assert(abs(math.sin(pi/6)-toFloat(lua_math.sin(pi/6))) < 0.000001)
 
 assert toFloat(lua_sin(pi/6))==toFloat(lua_math.sin(pi/6))
 

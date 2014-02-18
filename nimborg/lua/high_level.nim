@@ -175,7 +175,7 @@ proc peek*(s: PLuaState): string =
     return format("$1{$2}", $lua.tostring(s.L, -1), t)
   return "non-stringable{$1}" % $t
   
-proc callWithLuaRefs(f: PLuaRef, args: varargs[PLuaRef,toLua]): PLuaRef =
+proc callWithLuaRefs(f: PLuaRef, args: varargs[PLuaRef]): PLuaRef =
   let s = f.state
   luaPush(f)
   for i in 0..args.len-1:
@@ -190,36 +190,27 @@ proc callWithLuaRefs(f: PLuaRef, args: varargs[PLuaRef,toLua]): PLuaRef =
     luaError(err_code, toString(err_text))
   assert(result!=nil)
 
-# I need a macro to apply toLua to every argument of a lua function
-# converters can't work here because I need the state from the lua function 
-# as a parameter for toLua.
-macro mkRefsAndCall(f: PLuaRef, args: varargs[expr]): PLuaRef =
-  # I avoid a "let" here because of https://github.com/Araq/Nimrod/issues/904
-  # instead, there's a "let" in `()`.
-  # 
-  # this macro produces:
-  #   callWithLuaRefs(f, toLua(f.state, arg1), toLua(f.state, arg2), ...))
-  #
-  result = newCall(bindSym"callWithLuaRefs", f)
-  for i in 0..len(args)-1:
+proc newLuaCall(func: PNimrodNode, args: openarray[PNimrodNode]): PNimrodNode {.compileTime.} =
+  template let_f(f: expr, func: PLuaRef, body: expr): expr {.immediate.} = 
+    # a workaround to nimrod issue #904
+    (proc(f: PLuaref): PLuaRef = body)(func)
+  let f = gensym(nskParam, "f")
+  let body = newCall(bindSym"callWithLuaRefs", f)
+  for i in 0..args.len-1: 
     let state = newDotExpr(f, newIdentNode("state"))
-    result.add(newCall(bindSym"toLua", state, args[i]))
-  #echo "mkRefsAndCall produced: ", toStrLit(result)
-  #echo treeRepr(result)
+    body.add(newCall(bindSym"toLua", state, args[i]))
+  result = getAst(let_f(f, func, body))
 
-template workAroundBug904(f: PLuaRef, args: varargs[expr]): PLuaRef = 
-  bind mkRefsAndCall
-  # I would have preferred to write:
-  #   let f_val = f
-  #   mkRefsAndCall(f_val, args)
-  # but I must avoid 'let' at all costs:
-  (proc(f_val: PLuaRef): PLuaRef = mkRefsAndCall(f_val, args))(f)
+proc argsFromCS(cs: PNimrodNode, nDropped: int): seq[PNimrodNode] {.compileTime.} =
+  result = @[]
+  for i in nDropped..len(cs)-1: result.add(cs[i])
 
-# Dear reader: I apologize for this. These gymnastics will be removed once 
-# https://github.com/Araq/Nimrod/issues/904 is fixed.
-template `()`*(f: PLuaRef, args: varargs[expr]): PLuaRef = 
-  bind workAroundBug904
-  workAroundBug904(f, args)
+macro `()`*(func: PLuaRef, args: varargs[expr]): PLuaRef = 
+  # work around the problems with varargs by pulling arguments 
+  # out of callsite():
+  let cs = callsite() 
+  assert($toStrLit(cs[1]) == $toStrLit(func))
+  result = newLuaCall(func, argsFromCS(cs, 2))
 
 #-------------------------------------------------------------------------------
 # the new mechanism for overloading the dot
@@ -231,12 +222,7 @@ proc `.=`*[T](obj: PLuaRef, field: string, value: T) {.inline.} =
   obj[field] = toLua(value)
 
 macro `.()`*(obj: PLuaRef, field: string, args: varargs[expr]): expr =
-  #echo "$1.$2($3 args)" % [$toStrLit(obj), $field, $(cs.len-2)]
   let cs = callsite()
-  let f = newCall(bindSym"lookupKey", obj, field)
-  result = newCall(f)
   assert($cs[2] == $field)
-  for i in 3..cs.len-1: # varargs[expr] are unreliable
-    let state = newDotExpr(obj, newIdentNode("state"))
-    result.add(newCall(bindSym"toLua", state, cs[i]))
-  #echo toStrLit(result)
+  let func = newCall(bindSym"lookupKey", obj, field)
+  result = newLuaCall(func, argsFromCS(cs, 3))
