@@ -244,7 +244,7 @@ let default_buffer_flags: cint = PyBUF_WRITABLE or PyBUF_FORMAT
 
 template defPyBufferConverter(convName: expr, T: typeDesc, fmt: string): stmt {.immediate.} =
   proc convName*(obj: PPyRef, flags = default_buffer_flags): PTypedPyBuffer1D[T] =
-    new(result, finalizeTypedPyBuffer1D)
+    new(result, finalizeTypedPyBuffer1D[T])
     result.pyBuf.obj = nil # flag to skip PyBuffer_Release, unless GetBuffer succeeds
     let err = PyObject_GetBuffer(obj, addr(result.pyBuf), flags)
     if err == -1:
