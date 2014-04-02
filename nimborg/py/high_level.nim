@@ -86,10 +86,9 @@ converter rawPyObject(x: PPyRef): PPyObject = x.p
 
 proc toPy*(x: PPyRef): PPyRef = x
 converter toPy*(f: float): PPyRef{.procvar.} = wrapNew(PyFloat_fromDouble(f))
-converter toPy*(i: int): PPyRef {.procvar.} = 
-  result = wrapNew(PyInt_FromLong(int32(i)))
+converter toPy*(i: int): PPyRef {.procvar.} = wrapNew(PyInt_FromLong(int32(i)))
 converter toPy*(s: cstring): PPyRef {.procvar.} = wrapNew(PyString_fromString(s))
-converter toPy*(s: string): PPyRef {.procvar.} = wrapNew(toPy(cstring(s)))
+converter toPy*(s: string): PPyRef {.procvar.} = toPy(cstring(s))
 
 proc toList*(vals: openarray[PPyRef]): PPyRef =
   result = pyList(len(vals))
@@ -113,8 +112,7 @@ proc toTuple*(vals: openarray[PPyRef]): PPyRef =
     Py_INCREF(p) # PyTuple_SetItem steals refs
     discard check(PyTuple_SetItem(result.p, i, p))
 
-proc mkTuple*(args: varargs[PPyRef, toPy]): PPyRef = 
-  result = toTuple(args)
+proc mkTuple*(args: varargs[PPyRef, toPy]): PPyRef = toTuple(args)
   
 proc `$`*(o: PPyRef): string = 
   let s = wrapNew(PyObject_Str(o.p))
