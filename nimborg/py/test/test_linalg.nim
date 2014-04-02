@@ -30,4 +30,4 @@ for i in 0..buff.nElements-1:
 # test write access to a buffer
 for i in 0..buff.nElements-1:
   buff[i] = sin(float(i))
-  assert toFloat(estimate[i])==sin(float(i)) # passes 
+  assert toFloat(estimate[i])==sin(float(i))

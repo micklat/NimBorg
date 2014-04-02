@@ -3,6 +3,7 @@
 # short-term TODO:
 #
 # * export nimrod values (especially functions) to python (with new python type objects).   
+# * 
 #
 # mid-range TODO:
 # 
@@ -28,9 +29,9 @@ type
                                       # by the recepient python object
   EPyTypeError = object of EPython
 
-  Context = object 
+  Context* = object 
     globals*, locals*: PPyRef 
-  PContext = ref Context
+  PContext* = ref Context
 
 # forward declarations
 proc getattr*(o: PPyRef, field: cstring): PPyRef
@@ -216,24 +217,19 @@ type
     nElements*: int
   PTypedPyBuffer1D*[T] = ref TypedPyBuffer1D[T]
 
-proc len*[T](arr: TypedPyBuffer1D[T]): int {.inline.} = arr.nElements
+proc len*[T](arr: PTypedPyBuffer1D[T]): int {.inline.} = arr.nElements
 
-proc `[]`*[T](arr: TypedPyBuffer1D[T], i: int): var T =
+proc `[]`*[T](arr: PTypedPyBuffer1D[T], i: int): var T =
   let d = i*sizeof(T)
-  if d<arr.pyBuf.length: 
+  let lim = arr.pyBuf.length
+  if d<lim: 
     let p = cast[ptr T](cast[int](arr.pyBuf.buf) + d)
     result = p[]
   else:
     raise newException(EInvalidIndex, 
-                       "$* * $* >= $*" % [$i, $sizeof(T), $arr.pyBuf.length])
+                       "$* * $* >= $*" % [$i, $sizeof(T), $lim])
 
-proc `[]`*[T](arr: PTypedPyBuffer1D[T], i: int): var T {.inline.} = arr[][i]
-
-proc `[]=`*[T](arr: var TypedPyBuffer1D[T], i: int, v: T) {.inline.} =
-  let p : ptr T = addr(arr[i])
-  p[] = v
-
-proc `[]=`*[T](arr: var PTypedPyBuffer1D[T], i: int, v: T) {.inline.} =
+proc `[]=`*[T](arr: PTypedPyBuffer1D[T], i: int, v: T) {.inline.} =
   let p : ptr T = addr(arr[i])
   p[] = v
 
@@ -274,8 +270,9 @@ proc initContext*(): PContext =
   new result
   result.locals = pyDict()
   result.globals = pyDict()
-  result.globals["__builtins__"] = builtins()
-  result.globals["__builtins__"] = builtins()
+  let b = builtins()
+  result.globals["__builtins__"] = b
+  result.locals["__builtins__"] = b
 
 const 
   GC_the_python_interpreter = false
