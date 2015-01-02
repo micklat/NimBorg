@@ -147,22 +147,22 @@ proc pushstring(L: PState, s: string) =
   pushlstring(L, cstring(s), s.len.cint)
 
 proc getn(L: PState, n: cint): cint = 
-  Result = objlen(L, n)
+  result = objlen(L, n)
 
 proc setn(L: PState, t, n: cint) = 
   # does nothing as this operation is deprecated
-  raise newException(E_Base, "This operation is deprecated. Now shoo!")
+  raise newException(Exception, "This operation is deprecated. Now shoo!")
 
 proc open(): PState = 
-  Result = newstate()
+  result = newstate()
 
 proc dofile(L: PState, filename: cstring): cint = 
-  Result = loadfile(L, filename)
-  if Result == 0: Result = pcall(L, 0, MULTRET, 0)
+  result = loadfile(L, filename)
+  if result == 0: result = pcall(L, 0, MULTRET, 0)
   
 proc dostring(L: PState, str: cstring): cint = 
-  Result = loadstring(L, str)
-  if Result == 0: Result = pcall(L, 0, MULTRET, 0)
+  result = loadstring(L, str)
+  if result == 0: result = pcall(L, 0, MULTRET, 0)
   
 proc getmetatable(L: PState, tname: cstring) = 
   getfield(L, REGISTRYINDEX, tname)
@@ -172,22 +172,22 @@ proc argcheck(L: PState, cond: bool, numarg: cint, extramsg: cstring) =
     discard argerror(L, numarg, extramsg)
 
 proc checkstring(L: PState, n: cint): cstring = 
-  Result = checklstring(L, n, nil)
+  result = checklstring(L, n, nil)
 
 proc optstring(L: PState, n: cint, d: cstring): cstring = 
-  Result = optlstring(L, n, d, nil)
+  result = optlstring(L, n, d, nil)
 
 proc checkint(L: PState, n: cint): cint = 
-  Result = cint(checknumber(L, n))
+  result = cint(checknumber(L, n))
 
 proc checklong(L: PState, n: cint): clong = 
-  Result = int32(toInt(checknumber(L, n)))
+  result = int32(toInt(checknumber(L, n)))
 
 proc optint(L: PState, n: cint, d: float64): cint = 
-  Result = optnumber(L, n, d).cint
+  result = optnumber(L, n, d).cint
 
 proc optlong(L: PState, n: cint, d: float64): clong = 
-  Result = int32(toInt(optnumber(L, n, d)))
+  result = int32(toInt(optnumber(L, n, d)))
 
 proc addchar(B: PBuffer, c: char) = 
   if cast[int](addr((B.p))) < (cast[int](addr((B.buffer[0]))) + BUFFERSIZE): 

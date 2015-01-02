@@ -25,7 +25,7 @@ type
     r: cint
   PLuaRef* = ref LuaRef
 
-  ELua* = object of E_Base
+  ELua* = object of Exception
   ELuaTypeError* = object of ELua
   ELuaSyntax* = object of ELua
   #ELuaGCMM* = object of ELua # only defined in lua 5.2, the bindings are for 5.1
@@ -85,7 +85,7 @@ proc finalizeLuaState(s: PLuaState) =
 proc newLuaState*(open_std_libs=true) : PLuaState =
   let L = lauxlib.newstate()
   if L==nil:
-    raise newException(EOutOfMemory, "failure in lua_newstate()")
+    raise newException(OutOfMemError, "failure in lua_newstate()")
   new(result, finalizeLuaState)
   result.L = L
   if open_std_libs: result.openLibs()
@@ -101,7 +101,7 @@ proc luaError(err_code: int, context = "lua FFI"): void =
     of lua.ERRSYNTAX: 
       raise newException(ELuaSyntax, context)
     of lua.ERRMEM:
-      raise newException(EOutOfMemory, context)
+      raise newException(OutOfMemError, context)
     else:
       let msg = format("lua thread state=$1, in $2", 
                        err_code, context)

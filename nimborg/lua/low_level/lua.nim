@@ -304,7 +304,7 @@ proc gethookcount*(L: PState): cint{.ilua.}
 # implementation
 
 proc upvalueindex(I: cint): cint = 
-  Result = GLOBALSINDEX - I
+  result = GLOBALSINDEX - I
 
 proc pop(L: PState, n: cint) = 
   settop(L, - n - 1)
@@ -320,31 +320,31 @@ proc pushcfunction(L: PState, f: CFunction) =
   pushcclosure(L, f, 0)
 
 proc strlen(L: PState, i: cint): cint = 
-  Result = objlen(L, i)
+  result = objlen(L, i)
 
 proc isfunction(L: PState, n: cint): bool = 
-  Result = luatype(L, n) == TFUNCTION
+  result = luatype(L, n) == TFUNCTION
 
 proc istable(L: PState, n: cint): bool = 
-  Result = luatype(L, n) == TTABLE
+  result = luatype(L, n) == TTABLE
 
 proc islightuserdata(L: PState, n: cint): bool = 
-  Result = luatype(L, n) == TLIGHTUSERDATA
+  result = luatype(L, n) == TLIGHTUSERDATA
 
 proc isnil(L: PState, n: cint): bool = 
-  Result = luatype(L, n) == TNIL
+  result = luatype(L, n) == TNIL
 
 proc isboolean(L: PState, n: cint): bool = 
-  Result = luatype(L, n) == TBOOLEAN
+  result = luatype(L, n) == TBOOLEAN
 
 proc isthread(L: PState, n: cint): bool = 
-  Result = luatype(L, n) == TTHREAD
+  result = luatype(L, n) == TTHREAD
 
 proc isnone(L: PState, n: cint): bool = 
-  Result = luatype(L, n) == TNONE
+  result = luatype(L, n) == TNONE
 
 proc isnoneornil(L: PState, n: cint): bool = 
-  Result = luatype(L, n) <= 0
+  result = luatype(L, n) <= 0
 
 proc pushliteral(L: PState, s: cstring) = 
   pushlstring(L, s, s.len.cint)
@@ -356,10 +356,10 @@ proc getglobal(L: PState, s: cstring) =
   getfield(L, GLOBALSINDEX, s)
 
 proc tostring(L: PState, i: cint): cstring = 
-  Result = tolstring(L, i, nil)
+  result = tolstring(L, i, nil)
 
 proc getregistry(L: PState) = 
   pushvalue(L, REGISTRYINDEX)
 
 proc getgccount(L: PState): cint = 
-  Result = gc(L, GCCOUNT, 0)
+  result = gc(L, GCCOUNT, 0)
