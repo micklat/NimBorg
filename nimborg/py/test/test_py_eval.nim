@@ -1,4 +1,4 @@
-import nimborg/py/high_level
+import "../high_level"
 
 let c = initContext()
 c.globals["x"] = 42

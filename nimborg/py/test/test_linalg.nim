@@ -1,7 +1,7 @@
 # solve a random linear system of equations using scipy
 
-import nimborg/py/high_level
-import nimborg/py/low_level
+import "../high_level"
+import "../low_level"
 import strutils
 from math import sin
 

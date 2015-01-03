@@ -1,4 +1,4 @@
-import nimborg/py/high_level
+import "../high_level"
 import math
 
 echo "the current working directory is:"
@@ -19,7 +19,7 @@ var py_pi = pyImport("math").atan(p.y/p.x)
 let nim_pi = toFloat(4 * py_pi)
 let nim_pi2 = 4 * toFloat(py_pi)
 assert(abs(nim_pi-nim_pi2)<1e-5)
-assert(abs(nim_pi-math.pi)<1e-5)
+assert(abs(nim_pi-math.PI)<1e-5)
 
 # check implicit conversion
 assert(toFloat(4.2)==4.2)

@@ -1,4 +1,4 @@
-import nimborg/py/high_level
+import "../high_level"
 
 let n = 100
 let lx = pyList(n)
