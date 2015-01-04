@@ -10,7 +10,7 @@
 # * don't print exceptions, retrieve the exception information into nimrod
 #
 
-import nimborg/py/low_level except expr, stmt
+import low_level except expr, stmt
 import macros
 from strutils import `%`
 
@@ -24,7 +24,7 @@ type
     p: PPyObject
   PPyRef* = ref PyRef
 
-  EPython = object of E_Base
+  EPython = object of Exception
   EPyNotSupported = object of EPython # operation requested not supported 
                                       # by the recepient python object
   EPyTypeError = object of EPython
@@ -224,7 +224,7 @@ proc `[]`*[T](arr: PTypedPyBuffer1D[T], i: int): var T =
     let p = cast[ptr T](cast[int](arr.pyBuf.buf) + d)
     result = p[]
   else:
-    raise newException(EInvalidIndex, 
+    raise newException(IndexError, 
                        "$* * $* >= $*" % [$i, $sizeof(T), $lim])
 
 proc `[]=`*[T](arr: PTypedPyBuffer1D[T], i: int, v: T) {.inline.} =

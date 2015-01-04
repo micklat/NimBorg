@@ -253,7 +253,7 @@ type
       cdecl.}
   Tobjobjargproc* = proc (ob1, ob2, ob3: PPyObject): int{.cdecl.}
   Tpydestructor* = proc (ob: PPyObject){.cdecl.}
-  Tprintfunc* = proc (ob: PPyObject, f: TFile, i: int): int{.cdecl.}
+  Tprintfunc* = proc (ob: PPyObject, f: File, i: int): int{.cdecl.}
   Tgetattrfunc* = proc (ob1: PPyObject, name: cstring): PPyObject{.cdecl.}
   Tsetattrfunc* = proc (ob1: PPyObject, name: cstring, ob2: PPyObject): int{.
       cdecl.}
@@ -262,8 +262,8 @@ type
   Thashfunc* = proc (ob: PPyObject): int32{.cdecl.}
   Tgetattrofunc* = proc (ob1, ob2: PPyObject): PPyObject{.cdecl.}
   Tsetattrofunc* = proc (ob1, ob2, ob3: PPyObject): int{.cdecl.} 
-  Tgetreadbufferproc* = proc (ob1: PPyObject, i: int, p: Pointer): int{.cdecl.}
-  Tgetwritebufferproc* = proc (ob1: PPyObject, i: int, p: Pointer): int{.cdecl.}
+  Tgetreadbufferproc* = proc (ob1: PPyObject, i: int, p: pointer): int{.cdecl.}
+  Tgetwritebufferproc* = proc (ob1: PPyObject, i: int, p: pointer): int{.cdecl.}
   Tgetsegcountproc* = proc (ob1: PPyObject, i: int): int{.cdecl.}
   Tgetcharbufferproc* = proc (ob1: PPyObject, i: int, pstr: cstring): int{.cdecl.}
   Tgetbufferproc* = proc (a:PPyObject, buf:PPy_buffer, c:int): int {.cdecl.}
@@ -271,8 +271,8 @@ type
 
 
   Tobjobjproc* = proc (ob1, ob2: PPyObject): int{.cdecl.}
-  Tvisitproc* = proc (ob1: PPyObject, p: Pointer): int{.cdecl.}
-  Ttraverseproc* = proc (ob1: PPyObject, prc: TVisitproc, p: Pointer): int{.
+  Tvisitproc* = proc (ob1: PPyObject, p: pointer): int{.cdecl.}
+  Ttraverseproc* = proc (ob1: PPyObject, prc: TVisitproc, p: pointer): int{.
       cdecl.}
   Trichcmpfunc* = proc (ob1, ob2: PPyObject, i: int): PPyObject{.cdecl.}
   Tgetiterfunc* = proc (ob1: PPyObject): PPyObject{.cdecl.}
@@ -390,25 +390,26 @@ type
     flags*: int
     doc*: cstring
 
-  Tgetter* = proc (obj: PPyObject, context: Pointer): PPyObject{.cdecl.}
-  Tsetter* = proc (obj, value: PPyObject, context: Pointer): int{.cdecl.}
+  Tgetter* = proc (obj: PPyObject, context: pointer): PPyObject{.cdecl.}
+  Tsetter* = proc (obj, value: PPyObject, context: pointer): int{.cdecl.}
   PPyGetSetDef* = ptr TPyGetSetDef
   TPyGetSetDef*{.final.} = object 
     name*: cstring
     get*: Tgetter
     setter*: Tsetter
     doc*: cstring
-    closure*: Pointer
+    closure*: pointer
 
-  Twrapperfunc* = proc (self, args: PPyObject, wrapped: Pointer): PPyObject{.
+  Twrapperfunc* = proc (self, args: PPyObject, wrapped: pointer): PPyObject{.
       cdecl.}
   pwrapperbase* = ptr Twrapperbase
-  Twrapperbase*{.final.} = object  # Various kinds of descriptor objects
-                                   ##define PyDescr_COMMON \
-                                   #          PyObject_HEAD \
-                                   #          PyTypeObject *d_type; \
-                                   #          PyObject *d_name
-                                   #  
+  # Various kinds of descriptor objects
+  ##define PyDescr_COMMON \
+  #          PyObject_HEAD \
+  #          PyTypeObject *d_type; \
+  #          PyObject *d_name
+  #
+  Twrapperbase*{.final.} = object
     name*: cstring
     wrapper*: Twrapperfunc
     doc*: cstring
@@ -433,7 +434,7 @@ type
   PPyWrapperDescrObject* = ptr TPyWrapperDescrObject
   TPyWrapperDescrObject* = object of TPyDescrObject # object.h
     d_base*: pwrapperbase
-    d_wrapped*: Pointer       # This can be any function pointer
+    d_wrapped*: pointer       # This can be any function pointer
   
   TPyTypeObject* = object of TPyObject
     ob_size*: int             # Number of items in variable part
@@ -679,7 +680,7 @@ type
   
   PPyDateTime_BaseTZInfo* = ptr TPyDateTime_BaseTZInfo 
   TPyDateTime_BaseTime* = object of TPyDateTime_BaseTZInfo
-    data*: array[0..Pred(PyDateTime_TIME_DATASIZE), int8]
+    data*: array[0..pred(PyDateTime_TIME_DATASIZE), int8]
 
   PPyDateTime_BaseTime* = ptr TPyDateTime_BaseTime
   TPyDateTime_Time* = object of TPyDateTime_BaseTime # hastzinfo true
@@ -687,15 +688,15 @@ type
 
   PPyDateTime_Time* = ptr TPyDateTime_Time 
   TPyDateTime_Date* = object of TPyDateTime_BaseTZInfo
-    data*: array[0..Pred(PyDateTime_DATE_DATASIZE), int8]
+    data*: array[0..pred(PyDateTime_DATE_DATASIZE), int8]
 
   PPyDateTime_Date* = ptr TPyDateTime_Date 
   TPyDateTime_BaseDateTime* = object of TPyDateTime_BaseTZInfo
-    data*: array[0..Pred(PyDateTime_DATETIME_DATASIZE), int8]
+    data*: array[0..pred(PyDateTime_DATETIME_DATASIZE), int8]
 
   PPyDateTime_BaseDateTime* = ptr TPyDateTime_BaseDateTime
   TPyDateTime_DateTime* = object of TPyDateTime_BaseTZInfo
-    data*: array[0..Pred(PyDateTime_DATETIME_DATASIZE), int8]
+    data*: array[0..pred(PyDateTime_DATETIME_DATASIZE), int8]
     tzinfo*: PPyObject
 
   PPyDateTime_DateTime* = ptr TPyDateTime_DateTime 
@@ -842,8 +843,8 @@ type
 
 var 
   PyArg_Parse*: proc (args: PPyObject, format: cstring): int{.cdecl, varargs.} 
-  PyArg_ParseTuple*: proc (args: PPyObject, format: cstring, x1: Pointer = nil, 
-                           x2: Pointer = nil, x3: Pointer = nil): int{.cdecl, varargs.} 
+  PyArg_ParseTuple*: proc (args: PPyObject, format: cstring, x1: pointer = nil, 
+                           x2: pointer = nil, x3: pointer = nil): int{.cdecl, varargs.} 
   Py_BuildValue*: proc (format: cstring): PPyObject{.cdecl, varargs.} 
   PyCode_Addr2Line*: proc (co: PPyCodeObject, addrq: int): int{.cdecl.}
   DLL_Py_GetBuildInfo*: proc (): cstring{.cdecl.}
@@ -966,11 +967,11 @@ proc PyComplex_FromDoubles*(realv, imag: float64): PPyObject{.cdecl, importc, dy
 proc PyComplex_RealAsDouble*(op: PPyObject): float64{.cdecl, importc, dynlib: dllname.}
 proc PyComplex_ImagAsDouble*(op: PPyObject): float64{.cdecl, importc, dynlib: dllname.}
 proc PyComplex_AsCComplex*(op: PPyObject): TPy_complex{.cdecl, importc, dynlib: dllname.}
-proc PyCFunction_GetFunction*(ob: PPyObject): Pointer{.cdecl, importc, dynlib: dllname.}
+proc PyCFunction_GetFunction*(ob: PPyObject): pointer{.cdecl, importc, dynlib: dllname.}
 proc PyCFunction_GetSelf*(ob: PPyObject): PPyObject{.cdecl, importc, dynlib: dllname.}
 proc PyCallable_Check*(ob: PPyObject): int{.cdecl, importc, dynlib: dllname.}
-proc PyCObject_FromVoidPtr*(cobj, destruct: Pointer): PPyObject{.cdecl, importc, dynlib: dllname.}
-proc PyCObject_AsVoidPtr*(ob: PPyObject): Pointer{.cdecl, importc, dynlib: dllname.}
+proc PyCObject_FromVoidPtr*(cobj, destruct: pointer): PPyObject{.cdecl, importc, dynlib: dllname.}
+proc PyCObject_AsVoidPtr*(ob: PPyObject): pointer{.cdecl, importc, dynlib: dllname.}
 proc PyClass_New*(ob1, ob2, ob3: PPyObject): PPyObject{.cdecl, importc, dynlib: dllname.}
 proc PyClass_IsSubclass*(ob1, ob2: PPyObject): int{.cdecl, importc, dynlib: dllname.}
 proc Py_InitModule4*(name: cstring, methods: PPyMethodDef, doc: cstring, 
@@ -1076,8 +1077,8 @@ proc PyLong_FromString*(pc: cstring, ppc: var cstring, i: int): PPyObject{.
 proc PyLong_FromUnsignedLong*(val: int): PPyObject{.cdecl, importc, dynlib: dllname.} #-
 proc PyLong_AsUnsignedLong*(ob: PPyObject): int{.cdecl, importc, dynlib: dllname.} #-
 proc PyLong_FromUnicode*(ob: PPyObject, a, b: int): PPyObject{.cdecl, importc, dynlib: dllname.} #-
-proc PyLong_FromLongLong*(val: Int64): PPyObject{.cdecl, importc, dynlib: dllname.} #-
-proc PyLong_AsLongLong*(ob: PPyObject): Int64{.cdecl, importc, dynlib: dllname.} #-
+proc PyLong_FromLongLong*(val: int64): PPyObject{.cdecl, importc, dynlib: dllname.} #-
+proc PyLong_AsLongLong*(ob: PPyObject): int64{.cdecl, importc, dynlib: dllname.} #-
 proc PyMapping_Check*(ob: PPyObject): int{.cdecl, importc, dynlib: dllname.} #-
 proc PyMapping_GetItemString*(ob: PPyObject, key: cstring): PPyObject{.cdecl, importc, dynlib: dllname.} #-
 proc PyMapping_HasKey*(ob, key: PPyObject): int{.cdecl, importc, dynlib: dllname.} #-
@@ -1242,8 +1243,8 @@ proc PyParser_SimpleParseString*(str: cstring, start: int): PNode{.cdecl, import
 proc PyNode_Free*(n: PNode){.cdecl, importc, dynlib: dllname.} #-
 proc PyErr_NewException*(name: cstring, base, dict: PPyObject): PPyObject{.
       cdecl, importc, dynlib: dllname.}                 #-
-proc Py_Malloc*(size: int): Pointer {.cdecl, importc, dynlib: dllname.}
-proc PyMem_Malloc*(size: int): Pointer {.cdecl, importc, dynlib: dllname.}
+proc Py_Malloc*(size: int): pointer {.cdecl, importc, dynlib: dllname.}
+proc PyMem_Malloc*(size: int): pointer {.cdecl, importc, dynlib: dllname.}
 proc PyObject_CallMethod*(obj: PPyObject, theMethod, 
                               format: cstring): PPyObject{.cdecl, importc, dynlib: dllname.}
 proc Py_SetProgramName*(name: cstring){.cdecl, importc, dynlib: dllname.}
@@ -1266,75 +1267,75 @@ proc PyThreadState_Swap*(tstate: PPyThreadState): PPyThreadState{.cdecl, importc
 
 #Further exported Objects, may be implemented later
 #
-#    PyCode_New: Pointer;
-#    PyErr_SetInterrupt: Pointer;
-#    PyFile_AsFile: Pointer;
-#    PyFile_FromFile: Pointer;
-#    PyFloat_AsString: Pointer;
-#    PyFrame_BlockPop: Pointer;
-#    PyFrame_BlockSetup: Pointer;
-#    PyFrame_ExtendStack: Pointer;
-#    PyFrame_FastToLocals: Pointer;
-#    PyFrame_LocalsToFast: Pointer;
-#    PyFrame_New: Pointer;
-#    PyGrammar_AddAccelerators: Pointer;
-#    PyGrammar_FindDFA: Pointer;
-#    PyGrammar_LabelRepr: Pointer;
-#    PyInstance_DoBinOp: Pointer;
-#    PyInt_GetMax: Pointer;
-#    PyMarshal_Init: Pointer;
-#    PyMarshal_ReadLongFromFile: Pointer;
-#    PyMarshal_ReadObjectFromFile: Pointer;
-#    PyMarshal_ReadObjectFromString: Pointer;
-#    PyMarshal_WriteLongToFile: Pointer;
-#    PyMarshal_WriteObjectToFile: Pointer;
-#    PyMember_Get: Pointer;
-#    PyMember_Set: Pointer;
-#    PyNode_AddChild: Pointer;
-#    PyNode_Compile: Pointer;
-#    PyNode_New: Pointer;
-#    PyOS_GetLastModificationTime: Pointer;
-#    PyOS_Readline: Pointer;
-#    PyOS_strtol: Pointer;
-#    PyOS_strtoul: Pointer;
-#    PyObject_CallFunction: Pointer;
-#    PyObject_CallMethod: Pointer;
-#    PyObject_Print: Pointer;
-#    PyParser_AddToken: Pointer;
-#    PyParser_Delete: Pointer;
-#    PyParser_New: Pointer;
-#    PyParser_ParseFile: Pointer;
-#    PyParser_ParseString: Pointer;
-#    PyParser_SimpleParseFile: Pointer;
-#    PyRun_AnyFile: Pointer;
-#    PyRun_File: Pointer;
-#    PyRun_InteractiveLoop: Pointer;
-#    PyRun_InteractiveOne: Pointer;
-#    PyRun_SimpleFile: Pointer;
-#    PySys_GetFile: Pointer;
-#    PyToken_OneChar: Pointer;
-#    PyToken_TwoChars: Pointer;
-#    PyTokenizer_Free: Pointer;
-#    PyTokenizer_FromFile: Pointer;
-#    PyTokenizer_FromString: Pointer;
-#    PyTokenizer_Get: Pointer;
-#    Py_Main: Pointer;
-#    _PyObject_NewVar: Pointer;
-#    _PyParser_Grammar: Pointer;
-#    _PyParser_TokenNames: Pointer;
-#    _PyThread_Started: Pointer;
-#    _Py_c_diff: Pointer;
-#    _Py_c_neg: Pointer;
-#    _Py_c_pow: Pointer;
-#    _Py_c_prod: Pointer;
-#    _Py_c_quot: Pointer;
-#    _Py_c_sum: Pointer;
+#    PyCode_New: pointer;
+#    PyErr_SetInterrupt: pointer;
+#    PyFile_AsFile: pointer;
+#    PyFile_FromFile: pointer;
+#    PyFloat_AsString: pointer;
+#    PyFrame_BlockPop: pointer;
+#    PyFrame_BlockSetup: pointer;
+#    PyFrame_ExtendStack: pointer;
+#    PyFrame_FastToLocals: pointer;
+#    PyFrame_LocalsToFast: pointer;
+#    PyFrame_New: pointer;
+#    PyGrammar_AddAccelerators: pointer;
+#    PyGrammar_FindDFA: pointer;
+#    PyGrammar_LabelRepr: pointer;
+#    PyInstance_DoBinOp: pointer;
+#    PyInt_GetMax: pointer;
+#    PyMarshal_Init: pointer;
+#    PyMarshal_ReadLongFromFile: pointer;
+#    PyMarshal_ReadObjectFromFile: pointer;
+#    PyMarshal_ReadObjectFromString: pointer;
+#    PyMarshal_WriteLongToFile: pointer;
+#    PyMarshal_WriteObjectToFile: pointer;
+#    PyMember_Get: pointer;
+#    PyMember_Set: pointer;
+#    PyNode_AddChild: pointer;
+#    PyNode_Compile: pointer;
+#    PyNode_New: pointer;
+#    PyOS_GetLastModificationTime: pointer;
+#    PyOS_Readline: pointer;
+#    PyOS_strtol: pointer;
+#    PyOS_strtoul: pointer;
+#    PyObject_CallFunction: pointer;
+#    PyObject_CallMethod: pointer;
+#    PyObject_Print: pointer;
+#    PyParser_AddToken: pointer;
+#    PyParser_Delete: pointer;
+#    PyParser_New: pointer;
+#    PyParser_ParseFile: pointer;
+#    PyParser_ParseString: pointer;
+#    PyParser_SimpleParseFile: pointer;
+#    PyRun_AnyFile: pointer;
+#    PyRun_File: pointer;
+#    PyRun_InteractiveLoop: pointer;
+#    PyRun_InteractiveOne: pointer;
+#    PyRun_SimpleFile: pointer;
+#    PySys_GetFile: pointer;
+#    PyToken_OneChar: pointer;
+#    PyToken_TwoChars: pointer;
+#    PyTokenizer_Free: pointer;
+#    PyTokenizer_FromFile: pointer;
+#    PyTokenizer_FromString: pointer;
+#    PyTokenizer_Get: pointer;
+#    Py_Main: pointer;
+#    _PyObject_NewVar: pointer;
+#    _PyParser_Grammar: pointer;
+#    _PyParser_TokenNames: pointer;
+#    _PyThread_Started: pointer;
+#    _Py_c_diff: pointer;
+#    _Py_c_neg: pointer;
+#    _Py_c_pow: pointer;
+#    _Py_c_prod: pointer;
+#    _Py_c_quot: pointer;
+#    _Py_c_sum: pointer;
 #
 
 # This function handles all cardinals, pointer types (with no adjustment of pointers!)
 # (Extended) floats, which are handled as Python doubles and currencies, handled
 # as (normalized) Python doubles.
-proc PyImport_ExecCodeModule*(name: String, codeobject: PPyObject): PPyObject
+proc PyImport_ExecCodeModule*(name: string, codeobject: PPyObject): PPyObject
 proc PyString_Check*(obj: PPyObject): bool
 proc PyString_CheckExact*(obj: PPyObject): bool
 proc PyFloat_Check*(obj: PPyObject): bool
@@ -1369,10 +1370,10 @@ proc PyType_HasFeature*(AType: PPyTypeObject, AFlag: int): bool
 # implementation
 
 proc Py_INCREF*(op: PPyObject) {.inline.} = 
-  Inc(op.ob_refcnt)
+  inc(op.ob_refcnt)
 
 proc Py_DECREF*(op: PPyObject) {.inline.} = 
-  Dec(op.ob_refcnt)
+  dec(op.ob_refcnt)
   if op.ob_refcnt == 0: 
     op.ob_type.tp_dealloc(op)
 
@@ -1404,113 +1405,113 @@ proc PyImport_ExecCodeModule(name: string, codeobject: PPyObject): PPyObject =
         "Loaded module " & name & "not found in sys.modules"))
     return nil
   Py_XINCREF(m)
-  Result = m
+  result = m
 
 proc PyString_Check(obj: PPyObject): bool = 
-  Result = PyObject_TypeCheck(obj, PyString_Type)
+  result = PyObject_TypeCheck(obj, PyString_Type)
 
 proc PyString_CheckExact(obj: PPyObject): bool = 
-  Result = (obj != nil) and (obj.ob_type == PyString_Type)
+  result = (obj != nil) and (obj.ob_type == PyString_Type)
 
 proc PyFloat_Check(obj: PPyObject): bool = 
-  Result = PyObject_TypeCheck(obj, PyFloat_Type)
+  result = PyObject_TypeCheck(obj, PyFloat_Type)
 
 proc PyFloat_CheckExact(obj: PPyObject): bool = 
-  Result = (obj != nil) and (obj.ob_type == PyFloat_Type)
+  result = (obj != nil) and (obj.ob_type == PyFloat_Type)
 
 proc PyInt_Check(obj: PPyObject): bool = 
-  Result = PyObject_TypeCheck(obj, PyInt_Type)
+  result = PyObject_TypeCheck(obj, PyInt_Type)
 
 proc PyInt_CheckExact(obj: PPyObject): bool = 
-  Result = (obj != nil) and (obj.ob_type == PyInt_Type)
+  result = (obj != nil) and (obj.ob_type == PyInt_Type)
 
 proc PyLong_Check(obj: PPyObject): bool = 
-  Result = PyObject_TypeCheck(obj, PyLong_Type)
+  result = PyObject_TypeCheck(obj, PyLong_Type)
 
 proc PyLong_CheckExact(obj: PPyObject): bool = 
-  Result = (obj != nil) and (obj.ob_type == PyLong_Type)
+  result = (obj != nil) and (obj.ob_type == PyLong_Type)
 
 proc PyTuple_Check(obj: PPyObject): bool = 
-  Result = PyObject_TypeCheck(obj, PyTuple_Type)
+  result = PyObject_TypeCheck(obj, PyTuple_Type)
 
 proc PyTuple_CheckExact(obj: PPyObject): bool = 
-  Result = (obj != nil) and (obj[].ob_type == PyTuple_Type)
+  result = (obj != nil) and (obj[].ob_type == PyTuple_Type)
 
 proc PyInstance_Check(obj: PPyObject): bool = 
-  Result = (obj != nil) and (obj[].ob_type == PyInstance_Type)
+  result = (obj != nil) and (obj[].ob_type == PyInstance_Type)
 
 proc PyClass_Check(obj: PPyObject): bool = 
-  Result = (obj != nil) and (obj[].ob_type == PyClass_Type)
+  result = (obj != nil) and (obj[].ob_type == PyClass_Type)
 
 proc PyMethod_Check(obj: PPyObject): bool = 
-  Result = (obj != nil) and (obj[].ob_type == PyMethod_Type)
+  result = (obj != nil) and (obj[].ob_type == PyMethod_Type)
 
 proc PyList_Check(obj: PPyObject): bool = 
-  Result = PyObject_TypeCheck(obj, PyList_Type)
+  result = PyObject_TypeCheck(obj, PyList_Type)
 
 proc PyList_CheckExact(obj: PPyObject): bool = 
-  Result = (obj != nil) and (obj[].ob_type == PyList_Type)
+  result = (obj != nil) and (obj[].ob_type == PyList_Type)
 
 proc PyDict_Check(obj: PPyObject): bool = 
-  Result = PyObject_TypeCheck(obj, PyDict_Type)
+  result = PyObject_TypeCheck(obj, PyDict_Type)
 
 proc PyDict_CheckExact(obj: PPyObject): bool = 
-  Result = (obj != nil) and (obj[].ob_type == PyDict_Type)
+  result = (obj != nil) and (obj[].ob_type == PyDict_Type)
 
 proc PyModule_Check(obj: PPyObject): bool = 
-  Result = PyObject_TypeCheck(obj, PyModule_Type)
+  result = PyObject_TypeCheck(obj, PyModule_Type)
 
 proc PyModule_CheckExact(obj: PPyObject): bool = 
-  Result = (obj != nil) and (obj[].ob_type == PyModule_Type)
+  result = (obj != nil) and (obj[].ob_type == PyModule_Type)
 
 proc PySlice_Check(obj: PPyObject): bool = 
-  Result = (obj != nil) and (obj[].ob_type == PySlice_Type)
+  result = (obj != nil) and (obj[].ob_type == PySlice_Type)
 
 proc PyFunction_Check(obj: PPyObject): bool = 
-  Result = (obj != nil) and
+  result = (obj != nil) and
       ((obj.ob_type == PyCFunction_Type) or
       (obj.ob_type == PyFunction_Type))
 
 proc PyUnicode_Check(obj: PPyObject): bool = 
-  Result = PyObject_TypeCheck(obj, PyUnicode_Type)
+  result = PyObject_TypeCheck(obj, PyUnicode_Type)
 
 proc PyUnicode_CheckExact(obj: PPyObject): bool = 
-  Result = (obj != nil) and (obj.ob_type == PyUnicode_Type)
+  result = (obj != nil) and (obj.ob_type == PyUnicode_Type)
 
 proc PyType_IS_GC(t: PPyTypeObject): bool = 
-  Result = PyType_HasFeature(t, Py_TPFLAGS_HAVE_GC)
+  result = PyType_HasFeature(t, Py_TPFLAGS_HAVE_GC)
 
 proc PyObject_IS_GC(obj: PPyObject): bool = 
-  Result = PyType_IS_GC(obj.ob_type) and
+  result = PyType_IS_GC(obj.ob_type) and
       ((obj.ob_type.tp_is_gc == nil) or (obj.ob_type.tp_is_gc(obj) == 1))
 
 proc PyBool_Check(obj: PPyObject): bool = 
-  Result = (obj != nil) and (obj.ob_type == PyBool_Type)
+  result = (obj != nil) and (obj.ob_type == PyBool_Type)
 
 proc PyBaseString_Check(obj: PPyObject): bool = 
-  Result = PyObject_TypeCheck(obj, PyBaseString_Type)
+  result = PyObject_TypeCheck(obj, PyBaseString_Type)
 
 proc PyEnum_Check(obj: PPyObject): bool = 
-  Result = (obj != nil) and (obj.ob_type == PyEnum_Type)
+  result = (obj != nil) and (obj.ob_type == PyEnum_Type)
 
 proc PyObject_TypeCheck(obj: PPyObject, t: PPyTypeObject): bool = 
-  Result = (obj != nil) and (obj.ob_type == t)
-  if not Result and (obj != nil) and (t != nil): 
-    Result = PyType_IsSubtype(obj.ob_type, t) == 1
+  result = (obj != nil) and (obj.ob_type == t)
+  if not result and (obj != nil) and (t != nil): 
+    result = PyType_IsSubtype(obj.ob_type, t) == 1
   
 proc Py_InitModule(name: cstring, md: PPyMethodDef): PPyObject = 
   result = Py_InitModule4(name, md, nil, nil, 1012)
 
 proc PyType_HasFeature(AType: PPyTypeObject, AFlag: int): bool = 
   #(((t)->tp_flags & (f)) != 0)
-  Result = (AType.tp_flags and AFlag) != 0
+  result = (AType.tp_flags and AFlag) != 0
 
 proc PyObject_CheckBuffer*(obj: PPyObject): bool {.inline.} =
   ((obj.ob_type.tp_as_buffer != nil) and
     PyType_HasFeature(obj.ob_type, Py_TPFLAGS_HAVE_NEWBUFFER) and
     (obj.ob_type.tp_as_buffer.bf_getbuffer != nil))
 
-proc initLibVars(lib: TLibHandle) = 
+proc initLibVars(lib: LibHandle) = 
   Py_DebugFlag = cast[PInt](symAddr(lib, "Py_DebugFlag"))
   Py_VerboseFlag = cast[PInt](symAddr(lib, "Py_VerboseFlag"))
   Py_InteractiveFlag = cast[PInt](symAddr(lib, "Py_InteractiveFlag"))
@@ -1617,7 +1618,7 @@ proc initLibVars(lib: TLibHandle) =
 # don't require this anyway. Python is an exception.
 
 var
-  lib: TLibHandle
+  lib: LibHandle
 
 when defined(windows):
   const
@@ -1645,12 +1646,12 @@ else:
       "libpython1.5.so" & dllver]
   
 proc initPython*() =
-  for libName in items(libNames): 
+  for libName in items(LibNames): 
     lib = loadLib(libName, global_symbols=true)
     if lib != nil: break
 
   if lib == nil: 
-    raise newException(EInvalidLibrary, 
+    raise newException(LibraryError, 
                        "no suitable version of the python dll was found")
   initLibVars(lib)
   Py_Initialize()
