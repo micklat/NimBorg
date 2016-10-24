@@ -2,35 +2,36 @@
 
 # short-term TODO:
 #
-# * export nimrod values (especially functions) to python (with new python type objects).   
-# * 
+# * export nimrod values (especially functions) to python (with new python type objects).
+# *
 #
 # mid-range TODO:
-# 
+#
 # * don't print exceptions, retrieve the exception information into nimrod
 #
 
 import low_level except expr, stmt
 import macros
 from strutils import `%`
+import sequtils
 
 type
-  # A non-borrowed (counted) reference. Avoid copying these around! Nimrod 
+  # A non-borrowed (counted) reference. Avoid copying these around! Nimrod
   # doesn't have the equivalent of an assignment constructor (yet?), so any
   # copy of a PyRef must be counted (use dup for that). For this reason,
   # we add a level of indirection, and represent python objects as PPyRef,
   # which can be copied freely.
-  PyRef = object {.inheritable, byref.} 
+  PyRef = object {.inheritable, byref.}
     p: PPyObject
   PPyRef* = ref PyRef
 
   EPython = object of Exception
-  EPyNotSupported = object of EPython # operation requested not supported 
+  EPyNotSupported = object of EPython # operation requested not supported
                                       # by the recepient python object
   EPyTypeError = object of EPython
 
-  Context* = object 
-    globals*, locals*: PPyRef 
+  Context* = object
+    globals*, locals*: PPyRef
   PContext* = ref Context
 
 # forward declarations
@@ -70,11 +71,11 @@ proc finalizePyRef(o: PPyRef) =
     Py_DECREF(o.p)
     o.p = nil
 
-proc wrapNew*(p: PPyObject): PPyRef = 
+proc wrapNew*(p: PPyObject): PPyRef =
   new(result, finalizePyRef)
   result.p = check(p)
 
-proc dup*(src: PPyRef): PPyRef = 
+proc dup*(src: PPyRef): PPyRef =
   new(result, finalizePyRef)
   result.p = src.p
   Py_INCREF(result.p)
@@ -98,13 +99,13 @@ proc toList*(vals: openarray[PPyRef]): PPyRef =
     discard check(PyList_SetItem(result.p, i, p))
 
 # doesn't work as a converter, I don't know why
-proc toPy*[T](vals: openarray[T]): PPyRef {.procvar.} = 
+proc toPy*[T](vals: openarray[T]): PPyRef {.procvar.} =
   toList(map[T,PPyRef](vals, (proc(x:T): PPyRef = toPy(x))))
 
-converter toPy*[T](vals: seq[T]): PPyRef {.procvar.} = 
+converter toPy*[T](vals: seq[T]): PPyRef {.procvar.} =
   toList(map[T,PPyRef](vals, (proc(x:T): PPyRef = toPy(x))))
 
-proc toTuple*(vals: openarray[PPyRef]): PPyRef = 
+proc toTuple*(vals: openarray[PPyRef]): PPyRef =
   let size = vals.len
   result = wrapNew(PyTuple_New(size))
   for i in 0..size-1:
@@ -113,8 +114,8 @@ proc toTuple*(vals: openarray[PPyRef]): PPyRef =
     discard check(PyTuple_SetItem(result.p, i, p))
 
 proc mkTuple*(args: varargs[PPyRef, toPy]): PPyRef = toTuple(args)
-  
-proc `$`*(o: PPyRef): string = 
+
+proc `$`*(o: PPyRef): string =
   let s = wrapNew(PyObject_Str(o.p))
   $PyString_AsString(s.p)
 
@@ -148,11 +149,11 @@ proc len*(o: PPyRef): int = check(PyObject_Length(o.p))
 #-------------------------------------------------------------------------------
 # operator overloading
 
-proc `.`*(obj: PPyRef, field: string): PPyRef {.inline.} = 
+proc `.`*(obj: PPyRef, field: string): PPyRef {.inline.} =
   getattr(obj, field)
-  
-proc `.=`*[T](obj: PPyRef, field: string, value: T) {.inline.} = 
-  setattr(obj, field, toPy(value))  
+
+proc `.=`*[T](obj: PPyRef, field: string, value: T) {.inline.} =
+  setattr(obj, field, toPy(value))
 
 macro `.()`*(obj: PPyRef, field: string, args: varargs[PPyRef, toPy]): expr =
   #echo "$1.$2($3 args)" % [$toStrLit(obj), $field, $(cs.len-2)]
@@ -162,7 +163,7 @@ macro `.()`*(obj: PPyRef, field: string, args: varargs[PPyRef, toPy]): expr =
     result.add(newCall(bindSym"toPy", args[i]))
   #echo toStrLit(result)
 
-proc `()`*(f: PPyRef, args: varargs[PPyRef,toPy]): PPyRef = 
+proc `()`*(f: PPyRef, args: varargs[PPyRef,toPy]): PPyRef =
   let args_tup = toTuple(args)
   wrapNew(PyObject_CallObject(f.p, args_tup.p))
 
@@ -187,7 +188,7 @@ proc `==`*(a:PPyRef,b:PPyRef): PPyRef = wrapNew(PyObject_RichCompare(a.p, b.p, P
 
 proc pyDict*(): PPyRef = wrapNew(PyDict_New())
 
-proc pyList*(size: int): PPyRef = 
+proc pyList*(size: int): PPyRef =
   result = wrapNew(PyList_New(size))
   for i in 0..size-1:
     Py_INCREF(Py_None)
@@ -197,7 +198,7 @@ proc pyList*(size: int): PPyRef =
 proc finalizeRawPyBuffer(b: ref TPy_buffer) =
   if b.obj!=nil: PyBuffer_Release(addr(b[]))
 
-proc isPyBufferable*(obj: PPyRef): bool{.inline.} = 
+proc isPyBufferable*(obj: PPyRef): bool{.inline.} =
   PyObject_CheckBuffer(obj)
 
 # this is still very low-level. It will take some work to provide a friendly and general
@@ -220,11 +221,11 @@ proc len*[T](arr: PTypedPyBuffer1D[T]): int {.inline.} = arr.nElements
 proc `[]`*[T](arr: PTypedPyBuffer1D[T], i: int): var T =
   let d = i*sizeof(T)
   let lim = arr.pyBuf.length
-  if d<lim: 
+  if d<lim:
     let p = cast[ptr T](cast[int](arr.pyBuf.buf) + d)
     result = p[]
   else:
-    raise newException(IndexError, 
+    raise newException(IndexError,
                        "$* * $* >= $*" % [$i, $sizeof(T), $lim])
 
 proc `[]=`*[T](arr: PTypedPyBuffer1D[T], i: int, v: T) {.inline.} =
@@ -242,7 +243,7 @@ template defPyBufferConverter(convName: expr, T: typeDesc, fmt: string): stmt {.
     result.pyBuf.obj = nil # flag to skip PyBuffer_Release, unless GetBuffer succeeds
     let err = PyObject_GetBuffer(obj, addr(result.pyBuf), flags)
     if err == -1:
-      raise newException(EPyNotSupported, 
+      raise newException(EPyNotSupported,
         "buffer interface not supported with flags " & $flags)
     if ((flags and PyBUF_FORMAT)!=0) and (fmt != $result.pyBuf.format):
       let msg = "expected buffer format $1 but got $2" % [fmt, $result.pyBuf.format]
@@ -260,11 +261,11 @@ proc eval*(c: PContext, src: cstring): PPyRef =
   wrapNew(PyRun_String(src, eval_input, c.globals.p, c.locals.p))
 
 proc builtins*(): PPyRef = wrapNew(PyEval_GetBuiltins())
-  
+
 proc pyImport*(name: cstring): PPyRef =
   wrapNew(PyImport_ImportModule(name))
 
-proc initContext*(): PContext = 
+proc initContext*(): PContext =
   new result
   result.locals = pyDict()
   result.globals = pyDict()
@@ -272,12 +273,12 @@ proc initContext*(): PContext =
   result.globals["__builtins__"] = b
   result.locals["__builtins__"] = b
 
-const 
+const
   GC_the_python_interpreter = false
 
 when GC_the_python_interpreter:
   type
-    Interpreter = object {.bycopy.} 
+    Interpreter = object {.bycopy.}
     PInterpreter* = ref Interpreter
 
   proc finalizeInterpreter(interpreter: PInterpreter) =
