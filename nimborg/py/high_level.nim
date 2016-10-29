@@ -102,8 +102,11 @@ proc toList*(vals: openarray[PPyRef]): PPyRef =
 proc toPy*[T](vals: openarray[T]): PPyRef {.procvar.} =
   toList(map[T,PPyRef](vals, (proc(x:T): PPyRef = toPy(x))))
 
-converter toPy*[T](vals: seq[T]): PPyRef {.procvar.} =
-  toList(map[T,PPyRef](vals, (proc(x:T): PPyRef = toPy(x))))
+proc toPy*[T](vals: seq[T]): PPyRef {.procvar.} =
+  var transformed_list: seq[PPyRef] = @[]
+  for x in vals:
+    transformed_list.add(toPy(x))
+  return toList(transformed_list)
 
 proc toTuple*(vals: openarray[PPyRef]): PPyRef =
   let size = vals.len
